@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Card Restoration Lab</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="hero">
+        <h1>Card Restoration Lab</h1>
+        <p>Preservation-first batch upscaling for wrestling card scans. Originals are never overwritten.</p>
+      </header>
+
+      <form id="form" class="panel grid" novalidate>
+        <label id="drop" class="drop" for="files">
+          <input id="files" name="files" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff" multiple />
+          <strong>Drop card scans here</strong>
+          <span>or click to choose. JPEG, PNG, WebP, BMP or TIFF · up to <span id="lim-files">12</span> files, <span id="lim-mb">15</span> MB each</span>
+          <ul id="picked" class="picked"></ul>
+        </label>
+
+        <div class="controls">
+          <fieldset>
+            <legend>Profile</legend>
+            <label><input type="radio" name="profile" value="conservative" checked /> Conservative</label>
+            <label><input type="radio" name="profile" value="standard" /> Standard <small>(adds detail enhancement)</small></label>
+          </fieldset>
+          <fieldset>
+            <legend>Output scale</legend>
+            <label><input type="radio" name="scale" value="2" checked /> 2×</label>
+            <label><input type="radio" name="scale" value="4" /> 4×</label>
+          </fieldset>
+          <label class="slider">Tile size <output id="tile-out">256</output>
+            <input id="tile" name="tile" type="range" min="128" max="512" step="64" value="256" />
+            <small>Lower uses less memory.</small>
+          </label>
+          <label class="check"><input type="checkbox" name="ocr" checked /> Read restored text with OCR (Tesseract)</label>
+          <button id="run" type="submit" class="primary" disabled>Restore batch</button>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <section id="results" class="panel" hidden>
+        <div class="row-head">
+          <h2>Review output</h2>
+          <a id="zip" class="button" href="#" hidden download>Download ZIP (PNGs + manifest.csv)</a>
+        </div>
+        <p class="note">The edge metric is a <strong>diagnostic</strong>, not a quality score. OCR is a review aid: always check card names, numbers and copyright lines by eye.</p>
+        <div id="gallery" class="gallery"></div>
+        <div class="table-wrap">
+          <table>
+            <caption>Batch manifest</caption>
+            <thead>
+              <tr><th>File</th><th>Input</th><th>Output</th><th>Scale</th><th>Seconds</th><th>Input edge</th><th>Output edge</th><th>Bytes</th><th>SHA-256</th></tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <ul id="errors" class="errors"></ul>
+      </section>
+
+      <footer class="panel note">
+        <h2>Model disclosure</h2>
+        <p>Restoration engine: Real-ESRGAN x4plus (checksum-verified weights), with a final Lanczos resize for 2× output. Text review: Tesseract OCR. No diffusion, generative fill, face restoration, metadata edits or automatic grading.</p>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
