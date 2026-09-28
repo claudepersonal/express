@@ -14,6 +14,7 @@ const MAX_FILES = Number(process.env.MAX_FILES || 12);
 const MAX_FILE_MB = Number(process.env.MAX_FILE_MB || 15);
 const MAX_QUEUED_JOBS = Number(process.env.MAX_QUEUED_JOBS || 10);
 const JOB_TTL_MS = Number(process.env.JOB_TTL_HOURS || 24) * 3600 * 1000;
+const STALL_MS = Number(process.env.STALL_MINUTES || 10) * 60 * 1000;
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff']);
 const ID_RE = /^[0-9a-f-]{36}$/;
 
@@ -67,6 +68,7 @@ function createApp(opts = {}) {
     rows: job.rows,
     errors: job.errors,
     device: job.device,
+    progress: job.progress,
     message: job.message,
     createdAt: job.createdAt,
     finishedAt: job.finishedAt,
@@ -84,14 +86,33 @@ function createApp(opts = {}) {
     readline.createInterface({ input: child.stdout }).on('line', line => {
       let ev;
       try { ev = JSON.parse(line); } catch { return; }
-      if (ev.event === 'ready') job.device = ev.device;
-      else if (ev.event === 'file') job.rows.push({ index: ev.index, ...ev.row });
+      if (ev.event === 'ready') {
+        job.device = ev.device;
+        console.log(`job ${job.id}: worker ready on ${ev.device} (${ev.threads} threads), ${job.inputs.length} file(s)`);
+      } else if (ev.event === 'progress') {
+        job.progress = { index: ev.index, tile: ev.tile, tiles: ev.tiles };
+        job.lastProgress = Date.now();
+      }
+      else if (ev.event === 'file') {
+        job.rows.push({ index: ev.index, ...ev.row });
+        job.lastProgress = Date.now();
+        console.log(`job ${job.id}: ${ev.row.output} in ${ev.row.seconds}s`);
+      }
       else if (ev.event === 'error') job.errors.push({ index: ev.index, file: ev.file, message: ev.message });
       else if (ev.event === 'done') job.zip = ev.zip;
       else if (ev.event === 'fatal') job.message = ev.message;
     });
+    // Kill a worker that stops reporting progress so one bad job cannot block the queue.
+    job.lastProgress = Date.now();
+    const watchdog = setInterval(() => {
+      if (Date.now() - job.lastProgress > STALL_MS) {
+        job.message = `worker stalled (no progress for ${Math.round(STALL_MS / 60000)} min) and was stopped`;
+        child.kill('SIGKILL');
+      }
+    }, 15000);
     child.on('error', err => { job.message = `worker failed to start: ${err.message}`; });
     child.on('close', code => {
+      clearInterval(watchdog);
       job.child = null;
       if (code === 0 && job.zip && job.rows.length > 0) job.status = 'done';
       else {
@@ -232,7 +253,7 @@ function createApp(opts = {}) {
     child.on('error', e => { model = { status: 'unavailable', reason: e.message }; resolve(model); });
     child.on('close', code => {
       const ev = out.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return {}; } }).pop() || {};
-      model = code === 0 && ev.event === 'ready' ? { status: 'ready', device: ev.device } : { status: 'unavailable', reason: ev.message || err.trim().split('\n').pop() || `exit ${code}` };
+      model = code === 0 && ev.event === 'ready' ? { status: 'ready', device: ev.device, threads: ev.threads } : { status: 'unavailable', reason: ev.message || err.trim().split('\n').pop() || `exit ${code}` };
       resolve(model);
     });
   });
