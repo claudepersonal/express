@@ -16,6 +16,7 @@ import contextlib
 import csv
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -31,7 +32,25 @@ MODEL_SHA256 = '4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1
 MAX_INPUT_PIXELS = int(os.environ.get('MAX_INPUT_PIXELS', str(1600 * 1600)))
 TILE_PAD = int(os.environ.get('TILE_PAD', '64'))
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-torch.set_num_threads(max(1, int(os.environ.get('TORCH_THREADS', str(os.cpu_count() or 1)))))
+
+
+def available_cpus():
+    """CPUs this container may actually use. os.cpu_count() reports the host's
+    cores (dozens on Railway), and that many torch threads on an 8-vCPU quota
+    thrash; honour the cgroup quota and CPU affinity instead."""
+    n = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
+    try:
+        with open('/sys/fs/cgroup/cpu.max') as fh:
+            quota, period = fh.read().split()[:2]
+        if quota != 'max':
+            n = min(n, max(1, int(int(quota) / int(period))))
+    except (OSError, ValueError):
+        pass
+    return max(1, n)
+
+
+THREADS = int(os.environ.get('TORCH_THREADS') or available_cpus())
+torch.set_num_threads(THREADS)
 
 _model = None
 
@@ -67,7 +86,7 @@ def model():
 
 
 @torch.inference_mode()
-def upscale_x4(image_rgb, tile, pad=TILE_PAD):
+def upscale_x4(image_rgb, tile, pad=TILE_PAD, progress=None):
     """Tiled 4x inference. Each tile is run with `pad` px of real context on every
     side and only its centre is kept, so tile seams are not visible. The output is
     assembled directly as uint8 to keep memory at ~48 bytes per input pixel."""
@@ -76,6 +95,8 @@ def upscale_x4(image_rgb, tile, pad=TILE_PAD):
     x = torch.from_numpy(np.array(image_rgb, dtype=np.uint8, copy=True)).permute(2, 0, 1).float().div_(255).unsqueeze(0)
     out = np.empty((h * s, w * s, 3), dtype=np.uint8)
     step = max(int(tile), 32)
+    total = math.ceil(h / step) * math.ceil(w / step)
+    done = 0
     for y0 in range(0, h, step):
         for x0 in range(0, w, step):
             y1, x1 = min(y0 + step, h), min(x0 + step, w)
@@ -84,6 +105,9 @@ def upscale_x4(image_rgb, tile, pad=TILE_PAD):
             oy, ox = (y0 - py0) * s, (x0 - px0) * s
             crop = o[0, :, oy:oy + (y1 - y0) * s, ox:ox + (x1 - x0) * s].permute(1, 2, 0).numpy()
             out[y0 * s:y1 * s, x0 * s:x1 * s] = crop
+            done += 1
+            if progress:
+                progress(done, total)
     return out
 
 
@@ -102,7 +126,7 @@ def ocr_text(rgb):
         return f'OCR unavailable: {exc}'
 
 
-def restore_one(src, name, outdir, profile, scale, tile, want_ocr):
+def restore_one(src, name, outdir, profile, scale, tile, want_ocr, index=0):
     started = time.perf_counter()
     with Image.open(src) as im:
         original = np.asarray(im.convert('RGB'))
@@ -110,7 +134,7 @@ def restore_one(src, name, outdir, profile, scale, tile, want_ocr):
     if h * w > MAX_INPUT_PIXELS:
         raise ValueError(f'{w}x{h} is larger than the {MAX_INPUT_PIXELS:,}-pixel input limit; '
                          'this tool is for low-resolution scans, resize before restoring')
-    restored = upscale_x4(original, tile)
+    restored = upscale_x4(original, tile, progress=lambda d, t: emit({'event': 'progress', 'index': index, 'tile': d, 'tiles': t}))
     if scale == 2:
         restored = np.asarray(Image.fromarray(restored).resize((w * 2, h * 2), Image.Resampling.LANCZOS))
     if profile == 'standard':
@@ -151,11 +175,11 @@ def run(job):
     tile = min(max(int(job.get('tile', 256)), 64), 512)
     want_ocr = bool(job.get('ocr', True))
     model()
-    emit({'event': 'ready', 'device': DEVICE.type})
+    emit({'event': 'ready', 'device': DEVICE.type, 'threads': THREADS})
     rows = []
     for i, item in enumerate(job['inputs']):
         try:
-            row = restore_one(item['path'], item['name'], outdir, profile, scale, tile, want_ocr)
+            row = restore_one(item['path'], item['name'], outdir, profile, scale, tile, want_ocr, i)
             rows.append(row)
             emit({'event': 'file', 'index': i, 'row': row})
         except Exception as exc:
@@ -181,7 +205,7 @@ def run(job):
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == '--check':
         model()
-        emit({'event': 'ready', 'device': DEVICE.type})
+        emit({'event': 'ready', 'device': DEVICE.type, 'threads': THREADS})
         return
     try:
         run(json.load(sys.stdin))

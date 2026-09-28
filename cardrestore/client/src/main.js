@@ -91,7 +91,7 @@ function render(job) {
   const done = job.rows.length + job.errors.length;
   const text = {
     queued: `Queued (position ${job.position}).`,
-    running: `Restoring ${Math.min(done + 1, job.total)} of ${job.total} on ${job.device || 'the server'}… this takes about a minute or two per card on CPU.`,
+    running: `Restoring ${Math.min(done + 1, job.total)} of ${job.total} on ${job.device || 'the server'}${job.progress && job.progress.index === done ? ` · tile ${job.progress.tile}/${job.progress.tiles}` : ''}… about a minute or two per card on CPU.`,
     done: `Done: ${job.rows.length} restored${job.errors.length ? `, ${job.errors.length} failed` : ''}.`,
     failed: `Failed: ${job.message || 'unknown error'}`,
   }[job.status];
