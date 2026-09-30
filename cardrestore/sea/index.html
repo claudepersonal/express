@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="A procedural open sea rendered in real time with WebGPU and Three.js TSL, part of the Card Restoration Lab.">
+  <title>Open Sea</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three@0.186.1/three.webgpu.js",
+        "three/webgpu": "./vendor/three@0.186.1/three.webgpu.js",
+        "three/tsl": "./vendor/three@0.186.1/three.tsl.js",
+        "three/addons/": "./vendor/three@0.186.1/addons/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --panel: rgba(8, 14, 20, 0.72);
+      --panel-line: rgba(180, 214, 230, 0.16);
+      --ink: #e8f1f5;
+      --muted: #9fb3bd;
+      --accent: #7fd6e8;
+      --warn: #ffb27a;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #04080c; color: var(--ink); font: 14px/1.45 var(--font); overflow: hidden; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+    #stage canvas:focus-visible { box-shadow: inset 0 0 0 3px var(--accent); }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+    /* ---------- loading and failure ---------- */
+    .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(120% 90% at 50% 100%, #0b2433 0%, #04080c 70%); z-index: 20; }
+    .overlay[hidden] { display: none; }
+    .card { max-width: 520px; display: grid; gap: 12px; text-align: center; }
+    .card h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
+    .card p { margin: 0; color: var(--muted); }
+    .card code { font-family: var(--mono); font-size: 0.92em; color: var(--ink); }
+    .swell { width: 120px; height: 28px; margin: 0 auto; }
+    .swell path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+    @media (prefers-reduced-motion: no-preference) {
+      .swell path { animation: roll 2.4s ease-in-out infinite; }
+      @keyframes roll { 50% { transform: translateX(-20px); } }
+    }
+    .overlay.error .card h1 { color: var(--warn); }
+    .card button { justify-self: center; }
+
+    /* ---------- control panel ---------- */
+    .hud { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 10;
+           width: min(300px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px;
+           -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2); }
+    .hud header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 10px 14px; }
+    .hud h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .fps { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .hud form { display: grid; gap: 14px; padding: 4px 14px 14px; border-top: 1px solid var(--panel-line); padding-top: 12px; }
+    .hud[data-collapsed="true"] form { display: none; }
+    .hud form { max-height: calc(100dvh - 110px); overflow-y: auto; }
+    .row { display: grid; gap: 6px; }
+    .row .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .row label { font-weight: 500; }
+    .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; height: 22px; }
+    .check { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+    .check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+    .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { font: 500 13px var(--font); color: var(--ink); background: rgba(127, 214, 232, 0.12); border: 1px solid rgba(127, 214, 232, 0.35);
+             border-radius: 8px; padding: 7px 12px; cursor: pointer; min-height: 34px; }
+    button:hover { background: rgba(127, 214, 232, 0.22); }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .icon-btn { padding: 4px 10px; min-height: 30px; }
+    .hint { margin: 0; font-size: 12px; color: var(--muted); }
+    .hint kbd { font: 11px var(--mono); border: 1px solid var(--panel-line); border-radius: 4px; padding: 0 4px; color: var(--ink); }
+    .quality { font: 12px var(--mono); color: var(--muted); }
+    .back { color: var(--accent); }
+    @media (max-width: 520px) {
+      .hud { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; }
+    }
+    @media (prefers-contrast: more) {
+      :root { --panel: rgba(0, 0, 0, 0.92); --panel-line: rgba(255, 255, 255, 0.5); --muted: #d0dce2; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 class="sr-only">Open Sea: a real-time procedural ocean</h1>
+    <div id="stage"></div>
+    <p id="scene-desc" class="sr-only" aria-live="polite"></p>
+    <p id="canvas-help" class="sr-only">Drag or use one finger to look around, pinch or scroll to zoom, two fingers or arrow keys to pan. Press Space to pause and H to hide the controls.</p>
+
+    <section class="hud" id="hud" aria-labelledby="hud-title" data-collapsed="false" hidden>
+      <header>
+        <h2 id="hud-title">Sea controls</h2>
+        <span class="fps" aria-label="Frames per second"><output id="fps">--</output> fps</span>
+        <button type="button" class="icon-btn" id="toggle-hud" aria-expanded="true" aria-controls="hud-form">Hide</button>
+      </header>
+      <form id="hud-form">
+        <div class="row">
+          <div class="top"><label for="sea">Sea state</label><output id="sea-out" for="sea">Moderate</output></div>
+          <input type="range" id="sea" min="0" max="100" step="1" value="45" aria-describedby="sea-out">
+        </div>
+        <div class="row">
+          <div class="top"><label for="tod">Time of day</label><output id="tod-out" for="tod">17:40</output></div>
+          <input type="range" id="tod" min="0" max="24" step="0.05" value="17.67" aria-describedby="tod-out">
+        </div>
+        <label class="check"><input type="checkbox" id="drift" checked> Slow drift</label>
+        <div class="buttons">
+          <button type="button" id="pause" aria-pressed="false">Pause</button>
+          <button type="button" id="reset-view">Reset view</button>
+        </div>
+        <p class="quality" id="quality" aria-live="off"></p>
+        <p class="hint"><kbd>Space</kbd> pause · <kbd>H</kbd> hide panel · arrows pan when the view is focused</p>
+        <p class="hint"><a class="back" href="/">Back to Card Restoration Lab</a></p>
+      </form>
+    </section>
+
+    <div class="overlay" id="loading" role="status" aria-live="polite">
+      <div class="card">
+        <svg class="swell" viewBox="0 0 120 28" aria-hidden="true"><path d="M0 14 Q15 2 30 14 T60 14 T90 14 T120 14 T150 14"/></svg>
+        <h1>Open Sea</h1>
+        <p id="loading-text">Checking for WebGPU…</p>
+      </div>
+    </div>
+
+    <div class="overlay error" id="failure" role="alert" hidden>
+      <div class="card">
+        <h1 id="failure-title">WebGPU is not available</h1>
+        <p id="failure-text"></p>
+        <button type="button" id="retry">Try again</button>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="overlay error"><div class="card"><h1>JavaScript is off</h1><p>This ocean is rendered live in your browser and needs JavaScript and WebGPU.</p></div></div>
+    </noscript>
+  </main>
+  <script>
+    // Boot guard: runs before the module graph loads, so a blocked CDN, a
+    // file:// URL or a module error still ends in a readable message.
+    (function () {
+      function fail(title, text) {
+        var f = document.getElementById('failure');
+        if (!f.hidden) return; // keep the first, most specific message
+        document.getElementById('loading').hidden = true;
+        document.getElementById('failure-title').textContent = title;
+        document.getElementById('failure-text').textContent = text;
+        f.hidden = false;
+      }
+      window.__oceanBoot = { started: false, fail: fail };
+      // A module or one of its imports failing to download fires "error" on the
+      // script element; catch it at the window in the capture phase.
+      window.addEventListener('error', function (e) {
+        if (e.target && e.target.tagName === 'SCRIPT' && !window.__oceanBoot.started) {
+          fail('The renderer did not load', 'A script failed to download. Check your connection or content blocker, then try again.');
+        }
+      }, true);
+      document.getElementById('retry').addEventListener('click', function () { location.reload(); });
+      if (location.protocol === 'file:') {
+        fail('Open this page through a web server',
+             'Browsers block ES modules and WebGPU on file:// pages. In this folder run "npx serve ." or "python3 -m http.server 8080", then open http://localhost:8080.');
+        return;
+      }
+      setTimeout(function () {
+        if (!window.__oceanBoot.started) {
+          fail('The renderer did not load',
+               'The 3D engine did not finish downloading within 25 seconds. Check your connection, then try again.');
+        }
+      }, 25000);
+    })();
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
