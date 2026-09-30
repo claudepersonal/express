@@ -161,8 +161,22 @@ function renderTray() {
   const busy = state.job && (state.job.status === 'queued' || state.job.status === 'running');
   ui.run.disabled = n === 0 || busy;
   ui.run.textContent = busy ? 'Restoring…' : n ? `Restore ${n} card${n > 1 ? 's' : ''}` : 'Restore';
-  // Rough CPU budget: ~1–3 minutes per card at the input limit, 4× costs the same model time.
-  ui.estimate.textContent = n ? `About ${n}–${n * 3} minutes on the server's CPU.` : '';
+  ui.estimate.textContent = n ? estimateText(eligible()) : '';
+}
+
+// Real-ESRGAN cost scales with input pixels (2× and 4× cost the same model time).
+// Measured on the production 8-vCPU container: ~225 s per megapixel.
+const SECONDS_PER_MEGAPIXEL = 225;
+function estimateText(items) {
+  const megapixels = items.reduce((sum, it) => {
+    // Unknown size (TIFF has no preview): assume the worst case, the input limit.
+    const px = it.width ? it.width * it.height : state.limits.maxInputPixels;
+    return sum + Math.min(px, state.limits.maxInputPixels) / 1e6;
+  }, 0);
+  const s = megapixels * SECONDS_PER_MEGAPIXEL;
+  const lo = Math.max(1, Math.round((s * 0.8) / 60));
+  const hi = Math.max(lo + 1, Math.round((s * 1.25) / 60));
+  return `About ${lo}–${hi} minutes on the server's CPU. You can leave and come back: the link keeps this batch for 24 hours.`;
 }
 
 // Copy the FileList first: it is live, and clearing the input (so the same file
