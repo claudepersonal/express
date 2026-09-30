@@ -25,7 +25,7 @@ import zipfile
 import cv2
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageOps
 
 MODEL_PATH = os.environ.get('RESTORE_MODEL', os.path.join(os.path.dirname(__file__), '..', 'models', 'RealESRGAN_x4plus.pth'))
 MODEL_SHA256 = '4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1'
@@ -126,14 +126,28 @@ def ocr_text(rgb):
         return f'OCR unavailable: {exc}'
 
 
-def restore_one(src, name, outdir, profile, scale, tile, want_ocr, index=0):
-    started = time.perf_counter()
+def load_input(src, fit):
+    """Decode an upload as upright RGB. Phone photos carry their rotation in
+    EXIF, so it is applied first. Inputs over MAX_INPUT_PIXELS are either
+    shrunk to fit (Lanczos, aspect ratio kept) or rejected. Returns the pixels
+    and the original size when it was shrunk, else None."""
     with Image.open(src) as im:
-        original = np.asarray(im.convert('RGB'))
+        im = ImageOps.exif_transpose(im).convert('RGB')
+        w, h = im.size
+        if w * h <= MAX_INPUT_PIXELS:
+            return np.asarray(im), None
+        if not fit:
+            raise ValueError(f'{w}x{h} is larger than the {MAX_INPUT_PIXELS:,}-pixel input limit; '
+                             'turn on "Shrink large photos to fit" or resize before restoring')
+        k = math.sqrt(MAX_INPUT_PIXELS / (w * h))
+        size = (max(1, int(w * k)), max(1, int(h * k)))
+        return np.asarray(im.resize(size, Image.Resampling.LANCZOS)), f'{w}x{h}'
+
+
+def restore_one(src, name, outdir, profile, scale, tile, want_ocr, index=0, fit=True):
+    started = time.perf_counter()
+    original, fitted_from = load_input(src, fit)
     h, w = original.shape[:2]
-    if h * w > MAX_INPUT_PIXELS:
-        raise ValueError(f'{w}x{h} is larger than the {MAX_INPUT_PIXELS:,}-pixel input limit; '
-                         'this tool is for low-resolution scans, resize before restoring')
     restored = upscale_x4(original, tile, progress=lambda d, t: emit({'event': 'progress', 'index': index, 'tile': d, 'tiles': t}))
     if scale == 2:
         restored = np.asarray(Image.fromarray(restored).resize((w * 2, h * 2), Image.Resampling.LANCZOS))
@@ -152,6 +166,7 @@ def restore_one(src, name, outdir, profile, scale, tile, want_ocr, index=0):
         'file': name,
         'output': out_name,
         'input_pixels': f'{w}x{h}',
+        'fitted_from': fitted_from,
         'output_pixels': f'{restored.shape[1]}x{restored.shape[0]}',
         'scale': scale,
         'seconds': round(time.perf_counter() - started, 2),
@@ -163,7 +178,7 @@ def restore_one(src, name, outdir, profile, scale, tile, want_ocr, index=0):
     }
 
 
-MANIFEST_FIELDS = ['file', 'output', 'input_pixels', 'output_pixels', 'scale', 'seconds',
+MANIFEST_FIELDS = ['file', 'output', 'fitted_from', 'input_pixels', 'output_pixels', 'scale', 'seconds',
                    'input_edge_metric', 'output_edge_metric', 'output_bytes', 'sha256_prefix']
 
 
@@ -174,12 +189,13 @@ def run(job):
     scale = 4 if int(job.get('scale', 2)) == 4 else 2
     tile = min(max(int(job.get('tile', 256)), 64), 512)
     want_ocr = bool(job.get('ocr', True))
+    fit = bool(job.get('fit', True))
     model()
     emit({'event': 'ready', 'device': DEVICE.type, 'threads': THREADS})
     rows = []
     for i, item in enumerate(job['inputs']):
         try:
-            row = restore_one(item['path'], item['name'], outdir, profile, scale, tile, want_ocr, i)
+            row = restore_one(item['path'], item['name'], outdir, profile, scale, tile, want_ocr, i, fit)
             rows.append(row)
             emit({'event': 'file', 'index': i, 'row': row})
         except Exception as exc:
