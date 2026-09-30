@@ -7,14 +7,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const readline = require('node:readline');
+const compression = require('compression');
 const express = require('express');
 const multer = require('multer');
+const { createSeaRouter } = require('./sea');
 
 const MAX_FILES = Number(process.env.MAX_FILES || 12);
 const MAX_FILE_MB = Number(process.env.MAX_FILE_MB || 15);
 const MAX_QUEUED_JOBS = Number(process.env.MAX_QUEUED_JOBS || 10);
 const JOB_TTL_MS = Number(process.env.JOB_TTL_HOURS || 24) * 3600 * 1000;
 const STALL_MS = Number(process.env.STALL_MINUTES || 10) * 60 * 1000;
+// Must match the worker's MAX_INPUT_PIXELS; exposed so the client can warn before uploading.
+const MAX_INPUT_PIXELS = Number(process.env.MAX_INPUT_PIXELS || 1600 * 1600);
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff']);
 const ID_RE = /^[0-9a-f-]{36}$/;
 
@@ -33,6 +37,19 @@ function createApp(opts = {}) {
 
   const app = express();
   app.disable('x-powered-by');
+  app.use(compression());
+  // One line per API call (status + latency). Static assets are not logged.
+  app.use('/api', (req, res, next) => {
+    const started = process.hrtime.bigint();
+    const url = req.originalUrl.split('?')[0];
+    res.on('finish', () => {
+      // Successful status polls are routine noise; everything else is logged.
+      if (req.method === 'GET' && /^\/api\/jobs\/[^/]+$/.test(url) && res.statusCode === 200) return;
+      const ms = Number(process.hrtime.bigint() - started) / 1e6;
+      console.log(`${req.method} ${url} ${res.statusCode} ${ms.toFixed(0)}ms`);
+    });
+    next();
+  });
   app.use((_req, res, next) => {
     res.set({
       'X-Content-Type-Options': 'nosniff',
@@ -146,7 +163,7 @@ function createApp(opts = {}) {
   app.get('/health', (_req, res) => res.json({ ok: true }));
 
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, model, queue: queue.length, running: Boolean(running), limits: { maxFiles: MAX_FILES, maxFileMB: MAX_FILE_MB } });
+    res.json({ ok: true, model, queue: queue.length, running: Boolean(running), limits: { maxFiles: MAX_FILES, maxFileMB: MAX_FILE_MB, maxInputPixels: MAX_INPUT_PIXELS } });
   });
 
   app.post('/api/jobs',
@@ -179,6 +196,8 @@ function createApp(opts = {}) {
         scale: String(body.scale) === '4' ? 4 : 2,
         tile: Math.min(512, Math.max(64, Math.round(Number(body.tile) / 64) * 64 || 256)),
         ocr: body.ocr !== 'false',
+        // Shrink photos over MAX_INPUT_PIXELS to fit instead of rejecting them.
+        fit: body.fit !== 'false',
       };
       const job = {
         id: req.jobId,
@@ -232,6 +251,9 @@ function createApp(opts = {}) {
   });
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+
+  // Open Sea (WebGPU demo) with its own CSP; see server/sea.js.
+  app.use('/sea', createSeaRouter());
 
   if (fs.existsSync(path.join(distDir, 'index.html'))) {
     app.use(express.static(distDir, { index: 'index.html', maxAge: '1h' }));

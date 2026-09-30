@@ -24,7 +24,7 @@ for i, item in enumerate(job['inputs']):
     done.append(out)
     row = {'file': item['name'], 'output': out, 'input_pixels': '1x1', 'output_pixels': '2x2', 'scale': job['scale'],
            'seconds': 0.01, 'input_edge_metric': 0, 'output_edge_metric': 0, 'output_bytes': 1, 'sha256_prefix': 'x',
-           'ocr': 'TEXT' if job['ocr'] else None, 'profile_seen': job['profile'], 'tile_seen': job['tile']}
+           'ocr': 'TEXT' if job['ocr'] else None, 'profile_seen': job['profile'], 'tile_seen': job['tile'], 'fit_seen': job['fit'], 'fitted_from': None}
     print(json.dumps({'event': 'file', 'index': i, 'row': row}), flush=True)
 with zipfile.ZipFile(os.path.join(job['outdir'], 'restored_cards.zip'), 'w') as z:
     for out in done:

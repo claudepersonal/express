@@ -52,7 +52,7 @@ test('batch restore: queue, rows, per-file error, outputs and zip', async () => 
   assert.strictEqual(res.status, 202);
   const created = await res.json();
   assert.match(created.id, /^[0-9a-f-]{36}$/);
-  assert.deepStrictEqual(created.settings, { profile: 'standard', scale: 4, tile: 512, ocr: false });
+  assert.deepStrictEqual(created.settings, { profile: 'standard', scale: 4, tile: 512, ocr: false, fit: true });
   const job = await waitDone(created.id);
   assert.strictEqual(job.status, 'done');
   assert.strictEqual(job.rows.length, 1);

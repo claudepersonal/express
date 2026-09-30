@@ -31,6 +31,8 @@ COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 COPY server ./server
 COPY worker ./worker
+# Open Sea page (served at /sea/; three.js comes from node_modules installed above)
+COPY sea ./sea
 COPY --from=client /build/dist ./dist
 
 ENV NODE_ENV=production \
