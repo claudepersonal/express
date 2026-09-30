@@ -8,7 +8,7 @@ Batch Real-ESRGAN restoration for wrestling card scans. Replaces the
 - **worker/restore_worker.py**: Real-ESRGAN x4plus via spandrel (checksum-verified weights), EXIF orientation applied, tiled 4x inference with 64 px context padding, Lanczos resize for 2x, optional `detailEnhance` ("Standard"), Tesseract OCR, `manifest.csv` + `restored_cards.zip`.
 - **sea/** + **server/sea.js**: Open Sea, a WebGPU/three.js ocean demo at `/sea/`. three.js is served from the pinned npm package (no CDN) under a hash-pinned CSP; only an allowlist of five module files is reachable.
 
-Originals are never modified. Inputs over `MAX_INPUT_PIXELS` (default 1600×1600 worth of pixels) are shrunk to fit with Lanczos before restoring (`fit=true`, the default; the manifest's `fitted_from` column records the original size) or rejected with `fit=false`. CPU inference takes roughly 1–3 minutes per card at the limit.
+Originals are never modified. Inputs over `MAX_INPUT_PIXELS` (default 1600×1600 worth of pixels) are shrunk to fit with Lanczos before restoring (`fit=true`, the default; the manifest's `fitted_from` column records the original size) or rejected with `fit=false`. CPU inference costs about 225 s per input megapixel on the production 8-vCPU container (7–10 minutes for a card at the limit); the client's time estimate uses the same figure.
 
 ## API
 
