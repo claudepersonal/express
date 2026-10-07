@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>CardCrop · Upscale</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><div><p class="name">CardCrop</p><p class="sub">Upscale &amp; restore tier</p></div></div>
+    <p id="engine" class="pill" data-state="checking" role="status">Checking models…</p>
+  </header>
+
+  <main class="grid">
+    <section class="panel" aria-labelledby="add-h">
+      <div class="head"><h1 id="add-h">Cards</h1><button id="clear" class="ghost" type="button" hidden>Clear</button></div>
+      <label class="drop" id="drop" for="files">
+        <input id="files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/tiff,image/bmp">
+        <span class="drop-t">Drop card photos or <u>browse</u></span>
+        <span class="drop-h">Batches of 30–50 work best · up to <span id="lim-batch">50</span> · <span id="lim-mb">40</span> MB each</span>
+      </label>
+      <div class="bulk" id="bulk" hidden>
+        <label>Comp for all <span class="usd"><input id="comp-all" type="number" min="0" step="1" inputmode="decimal" placeholder="—"></span></label>
+        <button id="apply-all" class="ghost" type="button">Apply</button>
+        <p class="hint">Cards with a comp ≥ <span class="mono" id="hv">$500</span> get the max-fidelity chain.</p>
+      </div>
+      <ol id="tray" class="tray" aria-label="Selected cards"></ol>
+    </section>
+
+    <form id="opts" class="panel" novalidate aria-labelledby="opt-h">
+      <h2 id="opt-h">Settings</h2>
+      <fieldset class="seg"><legend>Upscaler</legend>
+        <label><input type="radio" name="model" value="auto" checked><span><b>Auto</b><small>Routed per card</small></span></label>
+        <label><input type="radio" name="model" value="text"><span><b>Text</b><small>SwinIR · names, serials</small></span></label>
+        <label><input type="radio" name="model" value="general"><span><b>General</b><small>Real-ESRGAN</small></span></label>
+      </fieldset>
+      <fieldset class="seg"><legend>Faces</legend>
+        <label><input type="radio" name="faces" value="off" checked><span><b>Off</b><small>Faces as scanned</small></span></label>
+        <label><input type="radio" name="faces" value="on"><span><b>Restore</b><small>GFPGAN · cosmetic, never on high-value</small></span></label>
+      </fieldset>
+      <fieldset class="seg"><legend>Damage repair</legend>
+        <label><input type="radio" name="damage" value="off" checked><span><b>Off</b><small>Show true condition</small></span></label>
+        <label><input type="radio" name="damage" value="local"><span><b>Local</b><small>Specks, scratches</small></span></label>
+        <label id="gemini-opt"><input type="radio" name="damage" value="gemini"><span><b>Gemini</b><small id="gemini-note">Masked, text-guarded</small></span></label>
+      </fieldset>
+      <p class="warn" id="retouch-warn" hidden>Retouched cards are flagged in the manifest. Disclose retouching in the listing; high-value cards are never retouched.</p>
+      <button id="run" class="primary" type="submit" disabled>Upscale</button>
+      <p id="form-err" class="err" role="alert"></p>
+    </form>
+
+    <section id="batch" class="panel wide" aria-labelledby="batch-h" hidden>
+      <div class="head">
+        <h2 id="batch-h">Batch <span id="batch-id" class="mono"></span></h2>
+        <div class="actions">
+          <a id="zip" class="button" href="#" hidden>Download ZIP</a>
+          <a id="csv" class="button ghost" href="#" hidden>Manifest CSV</a>
+          <button id="new" class="ghost" type="button" hidden>New batch</button>
+        </div>
+      </div>
+      <div class="sum"><progress id="prog" max="100" value="0"></progress><p id="sum" class="mono" role="status" aria-live="polite"></p></div>
+      <ul id="queue" class="queue" aria-label="Cards in this batch"></ul>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

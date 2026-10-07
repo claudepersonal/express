@@ -1,0 +1,16 @@
+# Production dependencies (versions verified in EVIDENCE.md of the upscale tier).
+numpy==2.2.6
+pillow==12.2.0
+opencv-python-headless==4.12.0.88
+scikit-image==0.26.0
+pytesseract==0.3.13
+onnxruntime==1.25.0
+# torch is installed in the Dockerfile from the CPU wheel index (torch==2.5.1+cpu)
+spandrel==0.4.2
+requests==2.33.1
+fastapi==0.118.0
+uvicorn==0.37.0
+python-multipart==0.0.26
+# only used at build time to export the ONNX graph
+onnx==1.23.1
+onnxscript==0.7.2
