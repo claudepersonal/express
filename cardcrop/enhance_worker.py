@@ -166,9 +166,11 @@ def enhance(input_path, output_path, opts=None):
         if opts['contrast'] > 0:
             lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
             l, a, b = cv2.split(lab)
-            equalized = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(l)
-            l = cv2.addWeighted(l, 1-opts['contrast'], equalized, opts['contrast'], 0)
-            img = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+            # Positive contrast enables full CLAHE; it is not a blend weight.
+            clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+            l = clahe.apply(l)
+            lab = cv2.merge([l, a, b])
+            img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
     sharpen = min(opts['sharpen'], 0.3) if opts['conservative'] else opts['sharpen']
     if sharpen > 0:
         f = img.astype(np.float32)
