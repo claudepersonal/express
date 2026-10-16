@@ -34,6 +34,12 @@ cv2.imwrite(${JSON.stringify(fixture)},im)`]);
     card=await poll();assert.equal(card.status,'enhanced',JSON.stringify(card));assert.equal(card.metadata.output_size,'1000x700');
     assert.equal(card.metadata.enhancement.detection_mode,'whole_frame');
     const out=await fetch(root+card.enhancedUrl);assert.equal(out.status,200);assert.equal(out.headers.get('content-type'),'image/png');
+    assert.equal((await fetch(root+'/api/cards/'+id+'/enhance?cleanup=classical',{method:'POST'})).status,400);
+    assert.equal((await fetch(root+'/api/cards/'+id+'/enhance?cleanup=classical&conservative=false&detection=none&scale=1&autoRotate=false',{method:'POST'})).status,200);
+    card=await poll();assert.equal(card.status,'enhanced',JSON.stringify(card));
+    assert.equal(card.metadata.enhancement.cleanup_engine,'classical');
+    assert.equal(card.metadata.enhancement.clahe.clip_limit,1.5);
+    assert.equal(card.metadata.output_size,'500x350');
     // Broken input must transition to failed, never enhanced, even with old output.
     const uploaded=fs.readdirSync(path.join(dir,'data/uploads'))[0];
     fs.writeFileSync(path.join(dir,'data/uploads',uploaded),'broken image');

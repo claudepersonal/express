@@ -193,7 +193,7 @@ const GATE=80;
 const TABS=[['upload','Upload'],['queue','Queue'],['tune','Tune'],['audit','Audit'],['results','Results']];
 let cards=[],pending=[],sel=new Set(),cur=null,view=localStorage.view||'upload';
 const settings=Object.assign({scale:2,descratch:0,denoise:0,sharpen:0.25,contrast:0,
-  conservative:true,escalate:true,autoRotate:true},JSON.parse(localStorage.settings||'{}'));
+  conservative:true,escalate:true,autoRotate:true,cleanup:'manual',detection:'yolo',cleanupStrength:0.45},JSON.parse(localStorage.settings||'{}'));
 const save=()=>localStorage.settings=JSON.stringify(settings);
 
 const W={player_name:25,year:12,manufacturer:12,set_name:10,promotion:10,card_type:8,card_number:5,serial:5,parallel:5,subset:5,finishing_move:3};
@@ -210,10 +210,11 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&
 
 const SLIDERS=[
  ['scale','Scale',1,4,0.5,'×','Resamples with high-quality smoothing. Long edge capped at 2200px.'],
+ ['cleanupStrength','Profile scratch repair',0,1,0.05,'','Classical profile inpaint blend only. Other profile stages use fixed settings; CNN ignores this unless it falls back.'],
  ['descratch','Descratch',0,1,0.05,'','Inpainting strength for candidate lines; may alter card detail. Disabled in conservative mode.'],
  ['denoise','Denoise',0,1,0.05,'','Blends Gaussian smoothing. Disabled in conservative mode.'],
  ['sharpen','Sharpen',0,1,0.05,'','Dual-scale unsharp mask. Above 0.7 text starts to halo.'],
- ['contrast','Contrast',0,0.5,0.01,'','Local contrast blend. Disabled in conservative mode.'],
+ ['contrast','Contrast',0,0.5,0.01,'','Any positive value enables full luminance CLAHE (1.5, 8×8). Zero disables it; conservative mode bypasses it.'],
 ];
 const TOGGLES=[
  ['conservative','Conservative processing','Disables inpainting, denoise and colour changes; caps sharpening at 0.3. Originals remain available.'],
@@ -222,11 +223,26 @@ const TOGGLES=[
 ];
 function renderControls(mount){
   const sl=mount.querySelector('#sliders,.sliders'), tg=mount.querySelector('#toggles,.toggles');
-  if(sl)sl.innerHTML=SLIDERS.map(([k,l,mn,mx,st,u,h])=>`<div class="ctl"><div class="row"><span>${l}</span><span class="mono">${settings[k]}${u}</span></div>
+  if(sl)sl.innerHTML=`<div class="ctl"><label>Cleanup
+    <select class="btn secondary" data-choice="cleanup">
+      <option value="manual">Manual sliders</option><option value="classical">Full classical cleanup</option><option value="cnn">CNN / classical fallback</option>
+    </select></label><div class="hint">Full profiles require conservative mode off and replace the four manual cleanup sliders. Originals remain available.</div></div>
+    <div class="ctl"><label>Crop method <select class="btn secondary" data-choice="detection">
+      <option value="yolo">YOLO bounding box</option><option value="contour">Contour + perspective</option><option value="none">Whole image</option>
+    </select></label></div>`+SLIDERS.map(([k,l,mn,mx,st,u,h])=>`<div class="ctl"><div class="row"><span>${l}</span><span class="mono">${settings[k]}${u}</span></div>
     <input type="range" min="${mn}" max="${mx}" step="${st}" value="${settings[k]}" data-k="${k}" data-u="${u}"><div class="hint">${h}</div></div>`).join('');
   if(tg)tg.innerHTML=TOGGLES.map(([k,l,h])=>`<div class="toggle"><div class="sw ${settings[k]?'on':''}" data-k="${k}"></div>
     <div><div>${l}</div><div class="why">${h}</div></div></div>`).join('');
-  mount.oninput=e=>{const k=e.target.dataset.k;if(!k)return;settings[k]=+e.target.value;
+  mount.querySelectorAll('[data-choice]').forEach(el=>{el.value=settings[el.dataset.choice];});
+  mount.querySelectorAll('input[data-k]').forEach(el=>{
+    const k=el.dataset.k;
+    el.disabled=k==='cleanupStrength' ? settings.cleanup==='manual' :
+      ['descratch','denoise','sharpen','contrast'].includes(k) && settings.cleanup!=='manual';
+  });
+  mount.oninput=e=>{
+    const choice=e.target.dataset.choice;
+    if(choice){settings[choice]=e.target.value;save();renderControls(mount);return;}
+    const k=e.target.dataset.k;if(!k)return;settings[k]=+e.target.value;
     e.target.parentElement.querySelector('.mono').textContent=settings[k]+e.target.dataset.u;save();};
   mount.onclick=e=>{const sw=e.target.closest('.sw');if(!sw)return;
     settings[sw.dataset.k]=!settings[sw.dataset.k];sw.classList.toggle('on');save();};
@@ -237,7 +253,7 @@ async function health(){try{const h=await j(API.health);const v=h.vlm;
   const prov=typeof v==='string'?v:(v&&v.provider)||'none';
   const ok=prov&&prov!=='not configured'&&prov!=='none'&&prov!=='null';
   hdot.className='dot '+(ok?'ok':'');htext.textContent=ok?`vlm: ${prov}`:'VLM unavailable · enhancement '+(h.enhancement?.available?'ready':'unavailable');runAll.disabled=!ok;
-  const detectorNote=h.yolo?.available?'detector ready':'no detector · whole-frame processing';
+  const detectorNote=h.yolo?.available?'YOLO ready':'YOLO unavailable · contour crop available';
   htext.textContent+=' · '+detectorNote;
  }catch{hdot.className='dot';htext.textContent='offline';runAll.disabled=true;}}
 const qs=extra=>new URLSearchParams({...Object.fromEntries(Object.entries(settings).map(([k,v])=>[k,String(v)])),...extra}).toString();
@@ -248,11 +264,12 @@ async function runSelected(){if(!sel.size)return;sel.forEach(id=>setLocal(id,'pr
   await Promise.allSettled([...sel].map(id=>j(API.vlmOne(id)+'?'+qs(),{method:'POST'})));loadCards();}
 runAll.onclick=async()=>{cards.forEach(c=>setLocal(c.id,'processing'));render();
   try{await j(API.vlmAll+'?'+qs(),{method:'POST'});}catch(e){alert(e.message);}loadCards();};
-async function enhanceOne(id){if(!id)return;
-  try{await j(API.enhance(id)+'?'+qs(),{method:'POST'});setLocal(id,'enhancing');render();}
+async function enhanceOne(id,query=qs()){if(!id)return;
+  try{await j(API.enhance(id)+'?'+query,{method:'POST'});setLocal(id,'enhancing');render();}
   catch(e){alert(e.message);}await loadCards();}
 async function enhanceSelected(){
-  for(const id of sel)await enhanceOne(id);
+  const ids=[...sel], query=qs();
+  for(const id of ids)await enhanceOne(id,query);
 }
 async function removeCard(id){try{await j(API.remove(id),{method:'DELETE'});}catch(e){alert(e.message);}loadCards();}
 function accept(id){const c=cards.find(c=>c.id===id);if(c&&!c.metadata?.error&&!['processing','enhancing','failed'].includes(c.status)){c.accepted=true;render();}}
@@ -311,7 +328,7 @@ function render(){
       ${m.bio_text?`<p class="muted" style="font-size:13px">${esc(m.bio_text)}</p>`:''}
       ${m.all_text?`<pre class="all mono">${esc(m.all_text)}</pre>`:''}
       ${m.enhanceError?`<p style="color:var(--fail)">${esc(m.enhanceError)}</p>`:''}
-      ${m.enhancement?`<p class="muted">${esc(m.enhancement.output_size)} · ${m.enhancement.yolo_cropped?'Detector crop':'Whole frame — check crop manually'} · rotation ${esc(m.enhancement.rotation)}</p>`:''}
+      ${m.enhancement?`<p class="muted">${esc(m.enhancement.output_size)} · ${esc(m.enhancement.detection_mode||'whole_frame')} · rotation ${esc(m.enhancement.rotation)} · ${esc(m.enhancement.cleanup_engine||'manual')} cleanup</p><p class="muted">${esc((m.enhancement.cleanup_warnings||[]).join('; '))}</p>`:''}
       ${a.enhancedUrl?`<a class="btn secondary" href="${esc(a.enhancedUrl)}" target="_blank" rel="noopener">Open enhanced image</a><img src="${esc(a.enhancedUrl)}" alt="Enhanced wrestling card preview" style="width:100%;margin-top:16px">`:''}
       ${m.error?`<pre class="all mono" style="color:var(--fail)">${esc(m.error)}${m.hint?'\n\n'+esc(m.hint):''}</pre>`:''}</div>`;}
   else auditBody.innerHTML='<p class="muted">Nothing to audit.</p>';
