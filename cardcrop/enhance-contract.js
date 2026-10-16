@@ -5,7 +5,7 @@ function enhanceOptsFrom(q) {
   const out = {};
   for (const [key, fallback, min, max] of [
     ['scale', 2, 1, 4], ['descratch', 0, 0, 1], ['denoise', 0, 0, 1],
-    ['sharpen', 0.25, 0, 1], ['contrast', 0, 0, 0.5],
+    ['sharpen', 0.25, 0, 1], ['contrast', 0, 0, 0.5], ['cleanupStrength', 0.45, 0, 1],
   ]) {
     const raw = q[key];
     if (raw !== undefined && (typeof raw !== 'string' || !raw.trim())) throw new Error(`Invalid ${key}`);
@@ -16,6 +16,17 @@ function enhanceOptsFrom(q) {
   for (const key of ['conservative', 'autoRotate']) {
     if (q[key] !== undefined && q[key] !== 'true' && q[key] !== 'false') throw new Error(`Invalid ${key}`);
     out[key] = q[key] !== 'false';
+  }
+  for (const [key, fallback, choices] of [
+    ['cleanup', 'manual', ['manual', 'classical', 'cnn']],
+    ['detection', 'yolo', ['yolo', 'contour', 'none']],
+  ]) {
+    const value = q[key] === undefined ? fallback : q[key];
+    if (typeof value !== 'string' || !choices.includes(value)) throw new Error(`Invalid ${key}`);
+    out[key] = value;
+  }
+  if (out.conservative && out.cleanup !== 'manual') {
+    throw new Error('Disable conservative mode to use a cleanup profile');
   }
   return out;
 }

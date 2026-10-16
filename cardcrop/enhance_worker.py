@@ -124,7 +124,8 @@ def validate_options(opts):
         raise ValueError('options must be an object')
     out = {}
     for key, default, lo, hi in [('scale', 2, 1, 4), ('descratch', 0, 0, 1),
-                               ('denoise', 0, 0, 1), ('sharpen', 0.25, 0, 1), ('contrast', 0, 0, 0.5)]:
+                               ('denoise', 0, 0, 1), ('sharpen', 0.25, 0, 1), ('contrast', 0, 0, 0.5),
+                               ('cleanupStrength', 0.45, 0, 1)]:
         value = opts.get(key, default)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not lo <= value <= hi:
             raise ValueError(f'{key} must be between {lo} and {hi}')
@@ -134,6 +135,14 @@ def validate_options(opts):
         if not isinstance(value, bool):
             raise ValueError(f'{key} must be a boolean')
         out[key] = value
+    for key, default, choices in [('cleanup', 'manual', ('manual', 'classical', 'cnn')),
+                                  ('detection', 'yolo', ('yolo', 'contour', 'none'))]:
+        value = opts.get(key, default)
+        if not isinstance(value, str) or value not in choices:
+            raise ValueError(f'invalid {key}')
+        out[key] = value
+    if out['conservative'] and out['cleanup'] != 'manual':
+        raise ValueError('disable conservative mode to use a cleanup profile')
     return out
 
 
@@ -145,8 +154,17 @@ def enhance(input_path, output_path, opts=None):
     if img is None:
         raise ValueError('cannot read image')
     src_h, src_w = img.shape[:2]
-    det = detect_card(img)
+    det = detect_card(img) if opts['detection'] == 'yolo' else None
+    detection_mode = 'whole_frame'
+    contour_conf = None
+    if opts['detection'] == 'contour':
+        from card_pipeline import detect_card_quad, perspective_crop
+        corners, contour_conf = detect_card_quad(img)
+        if corners is not None and contour_conf > 0.35:
+            img = perspective_crop(img, corners)
+            detection_mode = 'contour_perspective'
     if det:
+        detection_mode = 'yolo_crop'
         x1, y1, x2, y2, _ = det
         img = img[max(0, y1-4):min(src_h, y2+4), max(0, x1-4):min(src_w, x2+4)]
     rot = 'none'
@@ -157,8 +175,13 @@ def enhance(input_path, output_path, opts=None):
     size = (max(1, round(w*factor)), max(1, round(h*factor)))
     img = cv2.resize(img, size, interpolation=cv2.INTER_AREA if factor < 1 else cv2.INTER_LANCZOS4)
     candidates = 0
-    # Surface repair/colour changes require explicit non-conservative mode.
-    if not opts['conservative']:
+    cleanup_meta = {'cleanup_engine': 'manual', 'cleanup_device': 'cpu',
+                    'cleanup_warnings': [], 'inpaint_pixels': 0, 'surface_altered': False}
+    if opts['cleanup'] != 'manual':
+        from card_pipeline import run_cleanup
+        img, cleanup_meta = run_cleanup(img, opts['cleanup'], opts['cleanupStrength'])
+    # Manual sliders are separate from the complete cleanup profiles.
+    if not opts['conservative'] and opts['cleanup'] == 'manual':
         if opts['descratch'] > 0:
             img, candidates = adaptive_descratch(img, opts['descratch'])
         if opts['denoise'] > 0:
@@ -172,7 +195,7 @@ def enhance(input_path, output_path, opts=None):
             lab = cv2.merge([l, a, b])
             img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
     sharpen = min(opts['sharpen'], 0.3) if opts['conservative'] else opts['sharpen']
-    if sharpen > 0:
+    if sharpen > 0 and opts['cleanup'] == 'manual':
         f = img.astype(np.float32)
         img = np.clip(f + (f-cv2.GaussianBlur(f, (3, 3), 1.0))*sharpen*1.7
                       + (f-cv2.GaussianBlur(f, (5, 5), 2.0))*sharpen*0.8, 0, 255).astype(np.uint8)
@@ -189,9 +212,17 @@ def enhance(input_path, output_path, opts=None):
     return {'category': 'wrestling', 'rotation': rot, 'source': f'{src_w}x{src_h}',
             'output_size': f'{size[0]}x{size[1]}', 'orientation': 'landscape' if size[0] > size[1] else 'portrait',
             'yolo_available': status['available'], 'yolo_conf': round(det[4], 3) if det else None,
-            'yolo_cropped': bool(det), 'detection_mode': 'yolo_crop' if det else 'whole_frame',
-            'detection_warning': None if det else (status['reason'] or 'no_accepted_detection'),
-            'scratch_candidates': candidates, 'surface_altered': candidates > 0,
+            'yolo_cropped': bool(det), 'detection_mode': detection_mode, 'contour_conf': contour_conf,
+            'detection_warning': (None if detection_mode != 'whole_frame' else
+                                  ('crop_disabled' if opts['detection'] == 'none' else
+                                   'no_accepted_contour' if opts['detection'] == 'contour' else
+                                   (status['reason'] or 'no_accepted_detection'))),
+            'scratch_candidates': candidates, **cleanup_meta,
+            'surface_altered': candidates > 0 or cleanup_meta['surface_altered'],
+            'requested_settings': opts,
+            'clahe': {'clip_limit': 1.5, 'tiles': [8, 8]} if
+                cleanup_meta['cleanup_engine'] == 'classical' or
+                (opts['cleanup'] == 'manual' and not opts['conservative'] and opts['contrast'] > 0) else None,
             'conservative': opts['conservative'], 'review_needed': True}
 
 
