@@ -3,12 +3,13 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test tests/*.test.js && python3 -m unittest discover -s tests -v"
+    "start": "sh scripts/start.sh",
+    "test": "node --test tests/contracts.test.js tests/workbench.test.js tests/vlm.test.js && python3 -m unittest discover -s tests -v",
+    "test:gui": "node scripts/gui-smoke.cjs",
+    "dev": "node scripts/dev.cjs",
+    "build": "npm --prefix frontend run build"
   },
-  "dependencies": {
-    "express": "^5.2.1",
-    "multer": "^2.0.0",
-    "uuid": "^11.1.0"
+  "devDependencies": {
+    "playwright": "1.62.1"
   }
 }

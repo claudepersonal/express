@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CardCrop">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>CardCrop Wrestling</title>
+<style>
+:root{
+  --app:#0b0d12;--panel:#12151c;--input:#0d1016;--line:#1e2330;--text:#e7e9ef;--muted:#8a93a8;
+  --accent:#6366f1;--proc:#06b6d4;--ok:#10b981;--rev:#f59e0b;--fail:#ef4444;
+  --r8:8px;--r4:4px;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s6:24px;--s8:32px;
+  --ui:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,Menlo,monospace;
+}
+*{box-sizing:border-box}html,body{margin:0;background:var(--app);color:var(--text);font:14px/1.45 var(--ui);-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--muted)}
+.spacer{flex:1}
+
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);
+  padding-top:calc(var(--s3) + env(safe-area-inset-top));background:var(--app);border-bottom:1px solid var(--line)}
+.logo{font-weight:700;letter-spacing:.04em;color:var(--accent);white-space:nowrap}
+nav.tabs{display:flex;gap:var(--s1)}
+nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:var(--s2) var(--s3);color:var(--muted);cursor:pointer;white-space:nowrap}
+nav.tabs button.on{color:var(--text);border-color:var(--accent)}
+.health{display:flex;align-items:center;gap:var(--s2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--fail);flex:none}.dot.ok{background:var(--ok)}
+main{display:grid;grid-template-columns:272px 1fr;gap:var(--s4);padding:var(--s4);max-width:1440px;margin:0 auto}
+aside{display:flex;flex-direction:column;gap:var(--s4)}
+section.view{display:none}section.view.on{display:block}
+.toolbar{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s3)}
+.tabbar{display:none}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r8);padding:var(--s4)}
+.panel.accent{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.panel h3{margin:0 0 var(--s3);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--input);border-radius:var(--r4);padding:var(--s2) var(--s3);cursor:pointer;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.amber{background:var(--rev);border-color:var(--rev);color:#0b0d12;font-weight:600}
+.btn.secondary{background:var(--panel)}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn.danger{border-color:var(--fail);color:var(--fail);background:none}
+.btn.sm{padding:var(--s1) var(--s2);font-size:12px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px var(--s2);border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;border:1px solid}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill[data-s=queued]{color:var(--muted);border-color:var(--line)}
+.pill[data-s=processing]{color:var(--proc);border-color:var(--proc)}
+.pill[data-s=complete]{color:var(--ok);border-color:var(--ok)}
+.pill[data-s=review]{color:var(--rev);border-color:var(--rev)}
+.pill[data-s=failed]{color:var(--fail);border-color:var(--fail)}
+.bar{height:4px;background:var(--input);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.bar[data-s=processing] i{background:var(--proc)}.bar[data-s=complete] i{background:var(--ok)}
+.bar[data-s=review] i{background:var(--rev)}.bar[data-s=failed] i{background:var(--fail)}
+.meter{position:relative;height:6px;background:var(--input);border-radius:3px}
+.meter i{display:block;height:100%;border-radius:3px;background:var(--ok);transition:width .3s}
+.meter.low i{background:var(--rev)}.meter.bad i{background:var(--fail)}
+.meter::after{content:"";position:absolute;left:80%;top:-3px;width:2px;height:12px;background:var(--text);opacity:.55}
+.ctl{margin-bottom:var(--s4)}.ctl .row{display:flex;justify-content:space-between;align-items:baseline}
+.ctl input[type=range]{width:100%;accent-color:var(--rev);margin:var(--s2) 0}
+.ctl .hint{font-size:11px;color:var(--muted);line-height:1.4}
+.toggle{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3) 0;border-top:1px solid var(--line)}
+.toggle .sw{width:36px;height:20px;border-radius:10px;background:var(--input);border:1px solid var(--line);position:relative;flex:none;cursor:pointer;margin-top:2px}
+.toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:.15s}
+.toggle .sw.on{background:var(--accent);border-color:var(--accent)}.toggle .sw.on::after{left:18px;background:#fff}
+.toggle .why{font-size:11px;color:var(--muted);line-height:1.4}
+
+.drop{border:1px dashed var(--line);border-radius:var(--r8);padding:var(--s8) var(--s4);text-align:center;background:var(--input);cursor:pointer}
+.drop.over{border-color:var(--accent);background:rgba(99,102,241,.06)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s3)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r8);overflow:hidden;position:relative;cursor:pointer}
+.card.sel{border-color:var(--rev)}
+.card img{width:100%;aspect-ratio:5/7;object-fit:cover;background:#000;display:block}
+.card .cap{padding:var(--s2)}
+.card .chk{position:absolute;top:var(--s2);left:var(--s2);width:18px;height:18px;border-radius:var(--r4);border:1px solid var(--line);background:rgba(11,13,18,.85);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+.card.sel .chk{background:var(--rev);border-color:var(--rev);color:#0b0d12}
+.row-item{display:grid;grid-template-columns:48px 1fr auto;gap:var(--s3);align-items:center;padding:var(--s3) 0;border-top:1px solid var(--line)}
+.row-item img{width:48px;height:66px;object-fit:cover;border-radius:var(--r4);background:#000}
+.kv{display:grid;grid-template-columns:132px 1fr;gap:var(--s1) var(--s3);font-size:13px;margin:0}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--mono);font-size:12px;word-break:break-word}
+.kv dd.null{color:#3f4658;font-style:italic}
+pre.all{white-space:pre-wrap;background:var(--input);padding:var(--s3);border-radius:var(--r4);max-height:220px;overflow:auto;font-size:11px;margin:var(--s3) 0 0}
+
+@media (max-width:860px){
+  main{grid-template-columns:1fr;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+  nav.tabs{display:none} aside{display:none} aside.on{display:flex}
+  header .btn.amber{padding:var(--s1) var(--s2);font-size:12px}
+  .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:5;background:var(--panel);border-top:1px solid var(--line);
+    padding:var(--s2) var(--s2) calc(var(--s2) + env(safe-area-inset-bottom))}
+  .tabbar button{flex:1;background:none;border:0;color:var(--muted);padding:var(--s2) 0;font-size:11px}
+  .tabbar button.on{color:var(--accent)}
+  #auditBody{grid-template-columns:1fr !important}
+  .kv{grid-template-columns:1fr}.kv dt{margin-top:var(--s2)}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">CARDCROP WRESTLING</span>
+  <nav class="tabs" id="tabs"></nav>
+  <span class="spacer"></span>
+  <span class="health mono"><span class="dot" id="hdot"></span><span id="htext">connecting…</span></span>
+  <button class="btn amber" id="runAll">Run VLM on all</button>
+</header>
+
+<main>
+  <aside id="rail">
+    <div class="panel"><h3>Enhancement</h3><div id="sliders"></div></div>
+    <div class="panel"><h3>Behaviour</h3><div id="toggles"></div></div>
+    <div class="panel"><h3>Export</h3>
+      <button class="btn secondary" style="width:100%;margin-bottom:var(--s2)" onclick="exportJSON()">Export audit JSON</button>
+      <button class="btn secondary" style="width:100%" onclick="exportCSV()">Export manifest CSV</button>
+      <p class="hint muted" style="margin:var(--s3) 0 0;font-size:11px">Exports come from the processed queue, not placeholders.</p>
+    </div>
+  </aside>
+
+  <div>
+    <section class="view" data-v="upload">
+      <div class="panel">
+        <div class="drop" id="drop">
+          <div style="font-size:15px;font-weight:600">Upload wrestling card scans</div>
+          <div class="muted" style="margin-top:var(--s1)">WWE · AEW · other wrestling promotions — JPG · PNG · WEBP</div>
+          <input type="file" id="file" accept="image/*" multiple hidden>
+        </div>
+        <div class="toolbar" style="margin-top:var(--s3)">
+          <span class="mono muted" id="pendingCount">0 files ready</span><span class="spacer"></span>
+          <button class="btn ghost sm" onclick="pending=[];render()">Clear</button>
+          <button class="btn amber" id="uploadBtn" disabled onclick="upload()">Upload</button>
+        </div>
+        <div class="grid" id="pendingGrid" style="margin-top:var(--s3)"></div>
+      </div>
+    </section>
+
+    <section class="view" data-v="queue">
+      <div class="panel">
+        <div class="toolbar"><h3 style="margin:0">Queue</h3><span class="spacer"></span><span class="mono muted" id="qsum"></span></div>
+        <div class="bar" id="qbar" style="margin-bottom:var(--s3)"><i style="width:0%"></i></div>
+        <div id="queue"></div>
+      </div>
+    </section>
+
+    <section class="view" data-v="tune">
+      <div class="panel accent"><h3>Tune</h3><p class="muted" style="margin:0;font-size:13px">Settings persist on this device and are sent with every run.</p></div>
+      <div id="tuneMount" style="margin-top:var(--s4)"></div>
+    </section>
+
+    <section class="view" data-v="audit">
+      <div class="panel accent">
+        <div class="toolbar">
+          <select id="auditPick" class="btn secondary" style="max-width:52%"></select>
+          <span id="auditPill"></span><span class="spacer"></span>
+          <button class="btn sm secondary" onclick="rerun(cur)">Re-read</button>
+          <button class="btn sm secondary" onclick="enhanceOne(cur)">Enhance scan</button>
+          <button class="btn sm primary" onclick="accept(cur)">Accept this review</button>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:var(--s4)" id="auditBody"></div>
+      </div>
+    </section>
+
+    <section class="view" data-v="results">
+      <div class="panel">
+        <div class="toolbar">
+          <h3 style="margin:0">Results</h3><span class="mono muted" id="rsum"></span><span class="spacer"></span>
+          <button class="btn sm secondary" onclick="selectAll()">Select all</button>
+          <button class="btn sm ghost" onclick="sel.clear();render()">Clear</button>
+          <button class="btn sm secondary" onclick="enhanceSelected()">Enhance selected</button>
+          <button class="btn sm amber" id="runSel" onclick="runSelected()">Run on selected</button>
+        </div>
+        <div class="grid" id="results"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<nav class="tabbar" id="tabbar"></nav>
+
+<script>
+const API = {
+  cards:'/api/cards', upload:'/api/cards/upload', uploadField:'files',
+  vlmOne:id=>`/api/cards/${id}/vlm`, vlmAll:'/api/cards/vlm-all',
+  enhance:id=>`/api/cards/${id}/enhance`, remove:id=>`/api/cards/${id}`,
+  health:'/api/health', image:c=>c.url||`/uploads/${c.fileName}`,
+};
+const GATE=80;
+const TABS=[['upload','Upload'],['queue','Queue'],['tune','Tune'],['audit','Audit'],['results','Results']];
+let cards=[],pending=[],sel=new Set(),cur=null,view=localStorage.view||'upload';
+const settings=Object.assign({scale:2,descratch:0,denoise:0,sharpen:0.25,contrast:0,
+  conservative:true,escalate:true,autoRotate:true},JSON.parse(localStorage.settings||'{}'));
+const save=()=>localStorage.settings=JSON.stringify(settings);
+
+const W={player_name:25,year:12,manufacturer:12,set_name:10,promotion:10,card_type:8,card_number:5,serial:5,parallel:5,subset:5,finishing_move:3};
+function quality(m={}){if(typeof m.quality==='number')return m.quality;
+  return Object.entries(W).reduce((s,[k,w])=>s+(m[k]?w:0),0);}
+function uiStatus(c){const s=c.status||'queued';
+  if(/fail|error/.test(s)||c.metadata?.error)return'failed';
+  if(/process|running|pending|enhancing/.test(s))return'processing';
+  if(/complete|done|vlm|enhanced/.test(s))return c.accepted?'complete':'review';
+  return'queued';}
+const pill=s=>`<span class="pill" data-s="${s}">${s==='review'?'review needed':s}</span>`;
+const meter=q=>`<div class="meter ${q<50?'bad':q<GATE?'low':''}" title="${q}% · gate ${GATE}%"><i style="width:${q}%"></i></div>`;
+const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+
+const SLIDERS=[
+ ['scale','Scale',1,4,0.5,'×','Resamples with high-quality smoothing. Long edge capped at 2200px.'],
+ ['descratch','Descratch',0,1,0.05,'','Inpainting strength for candidate lines; may alter card detail. Disabled in conservative mode.'],
+ ['denoise','Denoise',0,1,0.05,'','Blends Gaussian smoothing. Disabled in conservative mode.'],
+ ['sharpen','Sharpen',0,1,0.05,'','Dual-scale unsharp mask. Above 0.7 text starts to halo.'],
+ ['contrast','Contrast',0,0.5,0.01,'','Local contrast blend. Disabled in conservative mode.'],
+];
+const TOGGLES=[
+ ['conservative','Conservative processing','Disables inpainting, denoise and colour changes; caps sharpening at 0.3. Originals remain available.'],
+ ['escalate','Retry incomplete identification','Low field completeness can trigger a configured second model. Every identification still needs review.'],
+ ['autoRotate','Auto-rotate to reading orientation','Checks all four orientations; preserves the original when OCR evidence is weak.'],
+];
+function renderControls(mount){
+  const sl=mount.querySelector('#sliders,.sliders'), tg=mount.querySelector('#toggles,.toggles');
+  if(sl)sl.innerHTML=SLIDERS.map(([k,l,mn,mx,st,u,h])=>`<div class="ctl"><div class="row"><span>${l}</span><span class="mono">${settings[k]}${u}</span></div>
+    <input type="range" min="${mn}" max="${mx}" step="${st}" value="${settings[k]}" data-k="${k}" data-u="${u}"><div class="hint">${h}</div></div>`).join('');
+  if(tg)tg.innerHTML=TOGGLES.map(([k,l,h])=>`<div class="toggle"><div class="sw ${settings[k]?'on':''}" data-k="${k}"></div>
+    <div><div>${l}</div><div class="why">${h}</div></div></div>`).join('');
+  mount.oninput=e=>{const k=e.target.dataset.k;if(!k)return;settings[k]=+e.target.value;
+    e.target.parentElement.querySelector('.mono').textContent=settings[k]+e.target.dataset.u;save();};
+  mount.onclick=e=>{const sw=e.target.closest('.sw');if(!sw)return;
+    settings[sw.dataset.k]=!settings[sw.dataset.k];sw.classList.toggle('on');save();};
+}
+async function j(url,init){const r=await fetch(url,init);if(!r.ok)throw new Error(`${r.status} ${(await r.text()).slice(0,200)}`);return r.json();}
+async function loadCards(){try{const d=await j(API.cards);const accepted=new Set(cards.filter(c=>c.accepted).map(c=>c.id));cards=d.cards||d;cards.forEach(c=>c.accepted=accepted.has(c.id));}catch(e){console.warn(e);}render();}
+async function health(){try{const h=await j(API.health);const v=h.vlm;
+  const prov=typeof v==='string'?v:(v&&v.provider)||'none';
+  const ok=prov&&prov!=='not configured'&&prov!=='none'&&prov!=='null';
+  hdot.className='dot '+(ok?'ok':'');htext.textContent=ok?`vlm: ${prov}`:'VLM unavailable · enhancement '+(h.enhancement?.available?'ready':'unavailable');runAll.disabled=!ok;
+  const detectorNote=h.yolo?.available?'detector ready':'no detector · whole-frame processing';
+  htext.textContent+=' · '+detectorNote;
+ }catch{hdot.className='dot';htext.textContent='offline';runAll.disabled=true;}}
+const qs=extra=>new URLSearchParams({...Object.fromEntries(Object.entries(settings).map(([k,v])=>[k,String(v)])),...extra}).toString();
+function setLocal(id,s){const c=cards.find(c=>c.id===id);if(c){c.status=s;c.accepted=false;}}
+async function rerun(id){if(!id)return;const c=cards.find(c=>c.id===id);if(c)c.accepted=false;setLocal(id,'processing');render();
+  try{await j(API.vlmOne(id)+'?'+qs(),{method:'POST'});}catch(e){alert(e.message);}loadCards();}
+async function runSelected(){if(!sel.size)return;sel.forEach(id=>setLocal(id,'processing'));render();
+  await Promise.allSettled([...sel].map(id=>j(API.vlmOne(id)+'?'+qs(),{method:'POST'})));loadCards();}
+runAll.onclick=async()=>{cards.forEach(c=>setLocal(c.id,'processing'));render();
+  try{await j(API.vlmAll+'?'+qs(),{method:'POST'});}catch(e){alert(e.message);}loadCards();};
+async function enhanceOne(id){if(!id)return;
+  try{await j(API.enhance(id)+'?'+qs(),{method:'POST'});setLocal(id,'enhancing');render();}
+  catch(e){alert(e.message);}await loadCards();}
+async function enhanceSelected(){
+  for(const id of sel)await enhanceOne(id);
+}
+async function removeCard(id){try{await j(API.remove(id),{method:'DELETE'});}catch(e){alert(e.message);}loadCards();}
+function accept(id){const c=cards.find(c=>c.id===id);if(c&&!c.metadata?.error&&!['processing','enhancing','failed'].includes(c.status)){c.accepted=true;render();}}
+function selectAll(){cards.forEach(c=>sel.add(c.id));render();}
+function go(v){view=v;localStorage.view=v;render();}
+
+drop.onclick=()=>file.click();
+file.onchange=()=>{pending.push(...file.files);file.value='';render();};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{pending.push(...[...e.dataTransfer.files].filter(f=>f.type.startsWith('image/')));render();});
+async function upload(){uploadBtn.disabled=true;
+  const fd=new FormData();pending.forEach(f=>fd.append(API.uploadField,f));
+  try{await j(API.upload,{method:'POST',body:fd});pending=[];go('queue');}catch(e){alert(e.message);}
+  loadCards();}
+function dl(n,t,ty){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click();}
+function exportJSON(){dl('cardcrop-audit.json',JSON.stringify(cards.map(c=>({file:c.fileName,status:uiStatus(c),quality:quality(c.metadata),...c.metadata})),null,2),'application/json');}
+function exportCSV(){const cols=['fileName','status','quality','player_name','year','manufacturer','set_name','promotion','card_number','serial','card_type','height','from_location','finishing_move','vlm_provider','vlm_ms'];
+  const rows=cards.map(c=>cols.map(k=>{const v=k==='fileName'?c.fileName:k==='status'?uiStatus(c):k==='quality'?quality(c.metadata):c.metadata?.[k];
+    return`"${String(v??'').replace(/"/g,'""')}"`;}).join(','));
+  dl('cardcrop-manifest.csv',[cols.join(','),...rows].join('\n'),'text/csv');}
+
+function render(){
+  tabs.innerHTML=tabbar.innerHTML=TABS.map(([v,l])=>`<button class="${v===view?'on':''}" onclick="go('${v}')">${l}</button>`).join('');
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.dataset.v===view));
+  rail.classList.toggle('on',view==='tune');
+  if(view==='tune'&&!tuneMount.children.length){
+    tuneMount.innerHTML=`<div class="panel"><h3>Enhancement</h3><div class="sliders"></div></div><div class="panel" style="margin-top:var(--s4)"><h3>Behaviour</h3><div class="toggles"></div></div>`;
+    renderControls(tuneMount);}
+  pendingCount.textContent=`${pending.length} file${pending.length===1?'':'s'} ready`;uploadBtn.disabled=!pending.length;
+  pendingGrid.innerHTML=pending.map(f=>`<div class="card"><img src="${URL.createObjectURL(f)}" alt=""><div class="cap mono muted">${esc(f.name)}</div></div>`).join('');
+  const done=cards.filter(c=>['complete','review'].includes(uiStatus(c))).length;
+  qsum.textContent=`${done}/${cards.length} read · ${cards.filter(c=>uiStatus(c)==='review').length} need review · ${cards.filter(c=>uiStatus(c)==='failed').length} failed`;
+  qbar.firstElementChild.style.width=(cards.length?done/cards.length*100:0)+'%';
+  queue.innerHTML=cards.map(c=>{const s=uiStatus(c),q=quality(c.metadata);return`
+    <div class="row-item"><img src="${API.image(c)}" alt="" loading="lazy">
+      <div><div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap"><span class="mono">${esc(c.fileName)}</span>${pill(s)}</div>
+        <div class="muted" style="margin:var(--s1) 0;font-size:13px">${esc(c.metadata?.player_name||'—')}${c.metadata?.year?' · '+esc(c.metadata.year):''}${c.metadata?.set_name?' · '+esc(c.metadata.set_name):''}</div>
+        <div class="bar" data-s="${s}"><i style="width:${s==='processing'?60:s==='queued'?0:100}%"></i></div>
+        <div style="margin-top:var(--s2)">${meter(q)}</div></div>
+      <div style="display:flex;flex-direction:column;gap:var(--s1)">
+        <button class="btn sm secondary" onclick="enhanceOne('${c.id}')">Enhance</button>
+        <button class="btn sm secondary" onclick="rerun('${c.id}')">Re-read</button>
+        <button class="btn sm ghost" onclick="cur='${c.id}';go('audit')">Audit</button>
+        <button class="btn sm danger" onclick="removeCard('${c.id}')">Remove</button></div></div>`;}).join('')||'<p class="muted">No cards yet. Upload scans to start.</p>';
+  auditPick.innerHTML=cards.map(c=>`<option value="${c.id}" ${c.id===cur?'selected':''}>${esc(c.fileName)} — ${esc(c.metadata?.player_name||'?')}</option>`).join('');
+  auditPick.onchange=()=>{cur=auditPick.value;render();};
+  if(!cur&&cards.length)cur=(cards.find(c=>uiStatus(c)==='review')||cards[0]).id;
+  const a=cards.find(c=>c.id===cur);
+  if(a){const m=a.metadata||{},q=quality(m);auditPill.innerHTML=pill(uiStatus(a));
+    const keys=['player_name','year','manufacturer','set_name','promotion','card_number','serial','card_type','height','from_location','finishing_move','is_back'];
+    auditBody.innerHTML=`<div><img src="${API.image(a)}" alt="" style="width:100%;border-radius:var(--r4)">
+      <div style="margin:var(--s3) 0 var(--s1);display:flex;justify-content:space-between"><span class="muted">Field completeness · not accuracy</span><span class="mono">${q}%</span></div>${meter(q)}
+      <div class="mono muted" style="margin-top:var(--s3)">${esc(m.vlm_provider||'tesseract')}${m.vlm_ms?' · '+m.vlm_ms+'ms':''}</div></div>
+      <div><dl class="kv">${keys.map(k=>`<dt>${k==='player_name'?'wrestler_name':k}</dt><dd class="${m[k]==null?'null':''}">${m[k]==null?'null':esc(m[k])}</dd>`).join('')}</dl>
+      ${m.bio_text?`<p class="muted" style="font-size:13px">${esc(m.bio_text)}</p>`:''}
+      ${m.all_text?`<pre class="all mono">${esc(m.all_text)}</pre>`:''}
+      ${m.enhanceError?`<p style="color:var(--fail)">${esc(m.enhanceError)}</p>`:''}
+      ${m.enhancement?`<p class="muted">${esc(m.enhancement.output_size)} · ${m.enhancement.yolo_cropped?'Detector crop':'Whole frame — check crop manually'} · rotation ${esc(m.enhancement.rotation)}</p>`:''}
+      ${a.enhancedUrl?`<a class="btn secondary" href="${esc(a.enhancedUrl)}" target="_blank" rel="noopener">Open enhanced image</a><img src="${esc(a.enhancedUrl)}" alt="Enhanced wrestling card preview" style="width:100%;margin-top:16px">`:''}
+      ${m.error?`<pre class="all mono" style="color:var(--fail)">${esc(m.error)}${m.hint?'\n\n'+esc(m.hint):''}</pre>`:''}</div>`;}
+  else auditBody.innerHTML='<p class="muted">Nothing to audit.</p>';
+  rsum.textContent=`${cards.length} scans · ${sel.size} selected · ${cards.filter(c=>uiStatus(c)==='complete').length} complete`;
+  runSel.disabled=!sel.size;
+  results.innerHTML=cards.map(c=>`<div class="card ${sel.has(c.id)?'sel':''}" onclick="sel.has('${c.id}')?sel.delete('${c.id}'):sel.add('${c.id}');render()">
+    <div class="chk">✓</div><img src="${API.image(c)}" alt="" loading="lazy">
+    <div class="cap"><div style="font-weight:600;font-size:13px">${esc(c.metadata?.player_name||'—')}</div>
+      <div class="mono muted">${esc(c.fileName)}</div>
+      <div style="margin-top:var(--s1)">${pill(uiStatus(c))}</div></div></div>`).join('')||'<p class="muted">Nothing yet.</p>';
+}
+renderControls(rail);render();health();loadCards();
+setInterval(()=>{health();if(cards.some(c=>uiStatus(c)==='processing'))loadCards();},3000);
+</script>
+</body>
+</html>

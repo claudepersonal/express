@@ -53,6 +53,27 @@ class EnhancementTests(unittest.TestCase):
             with self.subTest(opts=opts), self.assertRaises(ValueError):
                 w.validate_options(opts)
 
+    def test_manual_rotation_then_full_frame_uses_rotated_coordinates(self):
+        image=np.arange(4*6*3,dtype=np.uint8).reshape(4,6,3)
+        quad=[[0,0],[1,0],[1,1],[0,1]]
+        actual=w.manual_geometry(image,90,quad)
+        np.testing.assert_array_equal(actual,cv2.rotate(image,cv2.ROTATE_90_CLOCKWISE))
+
+    def test_manual_crop_bypasses_detector_and_is_reported(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(w,'detect_card',side_effect=AssertionError('detector overrides manual crop')), patch.object(w,'get_model',return_value=None):
+            src,dst=str(Path(d)/'in.png'),str(Path(d)/'out.png')
+            cv2.imwrite(src,np.zeros((100,200,3),np.uint8))
+            quad=[[.1,.1],[.9,.1],[.9,.9],[.1,.9]]
+            result=w.enhance(src,dst,{'quad':quad,'rotation':90,'autoRotate':False,'scale':1,'sharpen':0})
+            self.assertEqual(result['detection_mode'],'manual_quad')
+            self.assertEqual(result['manual_rotation'],90)
+            self.assertEqual(result['options']['quad'],quad)
+            self.assertEqual(result['backend'],'opencv')
+
+    def test_rejects_invalid_manual_geometry(self):
+        for opts in [{'rotation':45},{'rotation':True},{'quad':[[0,0],[1,1],[1,0],[0,1]]}]:
+            with self.subTest(opts=opts),self.assertRaises(ValueError): w.validate_options(opts)
+
     def test_failed_output_write_is_not_success(self):
         with tempfile.TemporaryDirectory() as d, patch.object(w, 'detect_card', return_value=None):
             src = str(Path(d)/'in.png')

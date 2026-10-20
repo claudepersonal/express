@@ -3,328 +3,465 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#070809">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="CardCrop">
+<meta name="apple-mobile-web-app-title" content="CardChop">
 <link rel="manifest" href="/manifest.webmanifest">
-<title>CardCrop Wrestling</title>
+<title>CardChop · Batch editor</title>
 <style>
 :root{
-  --app:#0b0d12;--panel:#12151c;--input:#0d1016;--line:#1e2330;--text:#e7e9ef;--muted:#8a93a8;
-  --accent:#6366f1;--proc:#06b6d4;--ok:#10b981;--rev:#f59e0b;--fail:#ef4444;
-  --r8:8px;--r4:4px;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s6:24px;--s8:32px;
-  --ui:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"JetBrains Mono",ui-monospace,Consolas,Menlo,monospace;
+  --bg:#050607;
+  --panel:#090a0c;
+  --panel2:#0d0f12;
+  --line:#26282d;
+  --line2:#17191d;
+  --text:#d7d9de;
+  --muted:#6f747d;
+  --muted2:#4d525b;
+  --amber:#ffad0a;
+  --amber2:#d88700;
+  --amberwash:rgba(255,173,10,.12);
+  --danger:#dc4c4c;
+  --ok:#6ac796;
+  --ui:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
 }
-*{box-sizing:border-box}html,body{margin:0;background:var(--app);color:var(--text);font:14px/1.45 var(--ui);-webkit-font-smoothing:antialiased}
-button,select,input{font:inherit;color:inherit}
-.mono{font-family:var(--mono);font-size:12px}
-.muted{color:var(--muted)}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#111;color:var(--text);font-family:var(--ui);-webkit-font-smoothing:antialiased}
+body{padding:0}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.38}
+.hidden{display:none!important}
+
+.app{
+  width:100%;
+  min-height:100vh;
+  background:var(--bg);
+  border:1px solid #2a2c31;
+  overflow:hidden;
+  display:grid;
+  grid-template-rows:52px minmax(0,1fr);
+}
+.topbar{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 14px 0 17px;
+  background:#08090b;
+  border-bottom:1px solid var(--line);
+}
+.brand{
+  display:flex;align-items:center;gap:8px;
+  font-size:13px;font-weight:700;white-space:nowrap;color:#e3e3e4;
+}
+.brand .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px rgba(255,173,10,.7)}
+.count-pill{
+  font:10px/1 var(--mono);
+  color:#a78b54;
+  border:1px solid rgba(255,173,10,.12);
+  background:rgba(255,173,10,.09);
+  border-radius:9px;
+  padding:5px 8px 4px;
+  letter-spacing:.01em;
+  white-space:nowrap;
+}
 .spacer{flex:1}
+.actions{display:flex;align-items:center;gap:8px}
+.btn{
+  height:28px;padding:0 13px;
+  border-radius:4px;
+  border:1px solid #30343d;
+  background:#111319;
+  color:#afb4bf;
+  font-size:10px;font-weight:600;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.015);
+}
+.btn:hover:not(:disabled){border-color:#454b57;color:#eceef3}
+.btn.ghost{background:#0c0e12}
+.btn.run{
+  height:31px;
+  padding:0 17px;
+  background:linear-gradient(#ffb315,#f29b00);
+  border-color:#ffb51e;
+  color:#171007;
+  box-shadow:0 0 18px rgba(255,167,0,.30),inset 0 1px rgba(255,255,255,.23);
+}
+.btn.run:hover:not(:disabled){filter:brightness(1.05)}
 
-header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);
-  padding-top:calc(var(--s3) + env(safe-area-inset-top));background:var(--app);border-bottom:1px solid var(--line)}
-.logo{font-weight:700;letter-spacing:.04em;color:var(--accent);white-space:nowrap}
-nav.tabs{display:flex;gap:var(--s1)}
-nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:var(--s2) var(--s3);color:var(--muted);cursor:pointer;white-space:nowrap}
-nav.tabs button.on{color:var(--text);border-color:var(--accent)}
-.health{display:flex;align-items:center;gap:var(--s2)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--fail);flex:none}.dot.ok{background:var(--ok)}
-main{display:grid;grid-template-columns:272px 1fr;gap:var(--s4);padding:var(--s4);max-width:1440px;margin:0 auto}
-aside{display:flex;flex-direction:column;gap:var(--s4)}
-section.view{display:none}section.view.on{display:block}
-.toolbar{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s3)}
-.tabbar{display:none}
+.workspace{
+  min-height:0;
+  display:grid;
+  grid-template-columns:214px minmax(0,1fr);
+}
+.sidebar{
+  min-height:0;
+  padding:14px 13px 12px;
+  border-right:1px solid var(--line);
+  background:#08090b;
+  overflow:auto;
+}
+.section-title{
+  margin:0 0 12px;
+  font:700 9px/1 var(--mono);
+  letter-spacing:.13em;
+  color:#6d7077;
+  text-transform:uppercase;
+}
+.control{margin:0 0 14px}
+.control-head{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:8px;
+  margin-bottom:6px;
+  color:#aeb1b8;
+  font-size:10px;font-weight:600;
+}
+.control-value{
+  font:700 10px/1 var(--mono);
+  color:#aab0bc;
+}
+input[type="range"]{
+  --pct:50%;
+  width:100%;height:13px;margin:0 0 3px;
+  appearance:none;-webkit-appearance:none;background:transparent;
+  outline:none;display:block;
+}
+input[type="range"]::-webkit-slider-runnable-track{
+  height:2px;border-radius:2px;
+  background:linear-gradient(to right,var(--amber) 0 var(--pct),#292c31 var(--pct) 100%);
+}
+input[type="range"]::-moz-range-track{height:2px;background:#292c31;border:none}
+input[type="range"]::-moz-range-progress{height:2px;background:var(--amber)}
+input[type="range"]::-webkit-slider-thumb{
+  appearance:none;-webkit-appearance:none;
+  width:15px;height:15px;border-radius:50%;
+  margin-top:-6.5px;background:#fff3c7;border:2px solid var(--amber);
+  box-shadow:0 0 9px rgba(255,173,10,.55);
+}
+input[type="range"]::-moz-range-thumb{
+  width:12px;height:12px;border-radius:50%;background:#fff3c7;border:2px solid var(--amber)
+}
+.hint{
+  color:#555a63;
+  font-size:8.5px;
+  line-height:1.42;
+}
+.checkrow{
+  display:grid;grid-template-columns:13px 1fr;gap:8px;
+  align-items:start;margin:-2px 0 14px;
+  color:#737883;font-size:8.5px;line-height:1.35;
+}
+.checkrow input{
+  width:12px;height:12px;margin:1px 0 0;
+  accent-color:var(--amber);
+}
+.divider{border:0;border-top:1px solid var(--line);margin:15px 0 9px}
+.export-btn{
+  width:100%;height:27px;
+  margin:0 0 6px;padding:0 10px;
+  text-align:left;
+  border:1px solid #33363c;border-radius:3px;
+  background:#0b0d10;color:#aeb2ba;
+  font-size:9px;font-weight:600;
+}
+.export-btn:hover:not(:disabled){border-color:#555a64;color:#f0f1f3}
+.export-hint{margin:6px 0 0;color:#4f535b;font-size:8.5px;line-height:1.38}
 
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r8);padding:var(--s4)}
-.panel.accent{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
-.panel h3{margin:0 0 var(--s3);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.btn{border:1px solid var(--line);background:var(--input);border-radius:var(--r4);padding:var(--s2) var(--s3);cursor:pointer;white-space:nowrap}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.amber{background:var(--rev);border-color:var(--rev);color:#0b0d12;font-weight:600}
-.btn.secondary{background:var(--panel)}
-.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
-.btn.danger{border-color:var(--fail);color:var(--fail);background:none}
-.btn.sm{padding:var(--s1) var(--s2);font-size:12px}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:2px var(--s2);border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;border:1px solid}
-.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
-.pill[data-s=queued]{color:var(--muted);border-color:var(--line)}
-.pill[data-s=processing]{color:var(--proc);border-color:var(--proc)}
-.pill[data-s=complete]{color:var(--ok);border-color:var(--ok)}
-.pill[data-s=review]{color:var(--rev);border-color:var(--rev)}
-.pill[data-s=failed]{color:var(--fail);border-color:var(--fail)}
-.bar{height:4px;background:var(--input);border-radius:2px;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
-.bar[data-s=processing] i{background:var(--proc)}.bar[data-s=complete] i{background:var(--ok)}
-.bar[data-s=review] i{background:var(--rev)}.bar[data-s=failed] i{background:var(--fail)}
-.meter{position:relative;height:6px;background:var(--input);border-radius:3px}
-.meter i{display:block;height:100%;border-radius:3px;background:var(--ok);transition:width .3s}
-.meter.low i{background:var(--rev)}.meter.bad i{background:var(--fail)}
-.meter::after{content:"";position:absolute;left:80%;top:-3px;width:2px;height:12px;background:var(--text);opacity:.55}
-.ctl{margin-bottom:var(--s4)}.ctl .row{display:flex;justify-content:space-between;align-items:baseline}
-.ctl input[type=range]{width:100%;accent-color:var(--rev);margin:var(--s2) 0}
-.ctl .hint{font-size:11px;color:var(--muted);line-height:1.4}
-.toggle{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3) 0;border-top:1px solid var(--line)}
-.toggle .sw{width:36px;height:20px;border-radius:10px;background:var(--input);border:1px solid var(--line);position:relative;flex:none;cursor:pointer;margin-top:2px}
-.toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:.15s}
-.toggle .sw.on{background:var(--accent);border-color:var(--accent)}.toggle .sw.on::after{left:18px;background:#fff}
-.toggle .why{font-size:11px;color:var(--muted);line-height:1.4}
+.batch{
+  min-width:0;min-height:0;
+  background:#050607;
+  padding:14px 13px 12px 17px;
+  overflow:auto;
+  position:relative;
+}
+.batch-head{
+  height:18px;
+  display:grid;grid-template-columns:auto minmax(90px,1fr) auto;
+  gap:8px;align-items:center;
+  margin:0 1px 8px;
+}
+.batch-label{
+  font:700 9px/1 var(--mono);letter-spacing:.13em;color:#666a72;
+}
+.progress-track{height:2px;background:#1f2226;position:relative;overflow:hidden}
+.progress-track i{position:absolute;inset:0 auto 0 0;width:0;background:var(--amber);transition:width .25s}
+.progress-text{font:700 8px/1 var(--mono);color:#4d525b;min-width:22px;text-align:right}
 
-.drop{border:1px dashed var(--line);border-radius:var(--r8);padding:var(--s8) var(--s4);text-align:center;background:var(--input);cursor:pointer}
-.drop.over{border-color:var(--accent);background:rgba(99,102,241,.06)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s3)}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r8);overflow:hidden;position:relative;cursor:pointer}
-.card.sel{border-color:var(--rev)}
-.card img{width:100%;aspect-ratio:5/7;object-fit:cover;background:#000;display:block}
-.card .cap{padding:var(--s2)}
-.card .chk{position:absolute;top:var(--s2);left:var(--s2);width:18px;height:18px;border-radius:var(--r4);border:1px solid var(--line);background:rgba(11,13,18,.85);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
-.card.sel .chk{background:var(--rev);border-color:var(--rev);color:#0b0d12}
-.row-item{display:grid;grid-template-columns:48px 1fr auto;gap:var(--s3);align-items:center;padding:var(--s3) 0;border-top:1px solid var(--line)}
-.row-item img{width:48px;height:66px;object-fit:cover;border-radius:var(--r4);background:#000}
-.kv{display:grid;grid-template-columns:132px 1fr;gap:var(--s1) var(--s3);font-size:13px;margin:0}
-.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--mono);font-size:12px;word-break:break-word}
-.kv dd.null{color:#3f4658;font-style:italic}
-pre.all{white-space:pre-wrap;background:var(--input);padding:var(--s3);border-radius:var(--r4);max-height:220px;overflow:auto;font-size:11px;margin:var(--s3) 0 0}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(88px,1fr));
+  grid-auto-flow:dense;
+  gap:10px 9px;
+  align-items:start;
+  padding:0 1px 8px;
+}
+.card{
+  position:relative;
+  min-width:0;
+  border:1px solid #24272c;
+  border-radius:4px;
+  background:#08090b;
+  overflow:hidden;
+  transition:border-color .08s, box-shadow .08s, filter .08s;
+  cursor:pointer;
+}
+.card.landscape{grid-column:span 2}
+.card.selected{
+  border-color:#d88b00;
+  box-shadow:0 0 0 1px rgba(255,177,21,.35),0 0 10px rgba(255,155,0,.07);
+}
+.card .imagebox{
+  position:relative;
+  width:100%;
+  aspect-ratio:5/7;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;background:#08090b;
+  border-bottom:1px solid #15171a;
+}
+.card.landscape .imagebox{aspect-ratio:10/7}
+.card img{
+  display:block;width:100%;height:100%;object-fit:contain;background:#07080a;
+  filter:grayscale(.82) brightness(.55) contrast(.94);
+  transition:filter .10s;
+}
+.card.selected img{filter:none}
+.card .check{
+  position:absolute;z-index:2;top:5px;left:5px;
+  width:14px;height:14px;border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid #383c44;background:rgba(6,7,9,.88);
+  color:transparent;
+  font:700 9px/1 var(--ui);
+}
+.card.selected .check{
+  color:#251606;background:var(--amber);border-color:#f9ba36;
+  box-shadow:0 0 7px rgba(255,173,10,.45)
+}
+.card .check::after{content:"✓"}
+.card .badge{
+  position:absolute;right:5px;top:5px;
+  min-width:14px;height:14px;padding:0 3px;border-radius:2px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(7,8,10,.77);color:#d8dade;
+  font:700 7px/1 var(--mono);text-transform:uppercase;
+}
+.card.selected .badge{background:rgba(7,8,10,.62)}
+.card .meta{height:41px;padding:7px 8px 5px;background:#07080a}
+.card .filename{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:#787e88;font:700 8px/1.1 var(--mono);letter-spacing:.01em;
+}
+.card.selected .filename{color:#9b8762}
+.card .dims{
+  margin-top:5px;color:#4b5058;
+  font:700 7.5px/1 var(--mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.empty{
+  grid-column:1/-1;
+  height:440px;
+  border:1px dashed #2d3035;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:#565b63;text-align:center;padding:24px;
+}
+.empty strong{font-size:14px;color:#8b9099;margin-bottom:6px}
+.empty span{font:9px/1.6 var(--mono)}
 
-@media (max-width:860px){
-  main{grid-template-columns:1fr;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
-  nav.tabs{display:none} aside{display:none} aside.on{display:flex}
-  header .btn.amber{padding:var(--s1) var(--s2);font-size:12px}
-  .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:5;background:var(--panel);border-top:1px solid var(--line);
-    padding:var(--s2) var(--s2) calc(var(--s2) + env(safe-area-inset-bottom))}
-  .tabbar button{flex:1;background:none;border:0;color:var(--muted);padding:var(--s2) 0;font-size:11px}
-  .tabbar button.on{color:var(--accent)}
-  #auditBody{grid-template-columns:1fr !important}
-  .kv{grid-template-columns:1fr}.kv dt{margin-top:var(--s2)}
+.drop-overlay{
+  position:fixed;inset:0;z-index:50;
+  background:rgba(3,4,5,.88);
+  border:2px dashed var(--amber);
+  display:none;align-items:center;justify-content:center;
+  color:#f5c76e;font:700 16px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;
+  pointer-events:none;
+}
+.drop-overlay.on{display:flex}
+
+.toast{
+  position:fixed;left:50%;bottom:22px;z-index:80;
+  transform:translateX(-50%) translateY(10px);
+  opacity:0;pointer-events:none;
+  background:#15181d;border:1px solid #343841;border-radius:4px;
+  color:#c4c8d0;font:10px/1.3 var(--mono);
+  padding:9px 12px;transition:.16s;max-width:min(560px,calc(100vw - 30px));
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.modal{
+  position:fixed;inset:0;z-index:70;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.82);padding:24px;
+}
+.modal.on{display:flex}
+.modal-panel{
+  width:min(980px,96vw);max-height:92vh;overflow:auto;
+  background:#08090b;border:1px solid #30333a;border-radius:6px;
+  box-shadow:0 24px 80px rgba(0,0,0,.55);
+}
+.modal-head{
+  height:46px;display:flex;align-items:center;gap:10px;
+  padding:0 13px;border-bottom:1px solid #24272c;
+}
+.modal-head strong{font-size:11px}
+.modal-head .mono{font:9px/1 var(--mono);color:#666b74}
+.modal-close{margin-left:auto}
+.compare{
+  display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#24272c;
+}
+.compare figure{margin:0;background:#050607;padding:12px}
+.compare figcaption{font:8px/1 var(--mono);color:#656a72;text-transform:uppercase;letter-spacing:.11em;margin-bottom:8px}
+.compare img{display:block;width:100%;height:min(62vh,620px);object-fit:contain;background:#030405}
+
+@media (max-width:980px){
+  .grid{grid-template-columns:repeat(5,minmax(86px,1fr))}
+}
+@media (max-width:820px){
+  .workspace{grid-template-columns:185px minmax(0,1fr)}
+  .grid{grid-template-columns:repeat(4,minmax(82px,1fr))}
+}
+@media (max-width:650px){
+  .topbar{height:auto;min-height:52px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+  .app{grid-template-rows:auto minmax(0,1fr)}
+  .count-pill{order:3}
+  .workspace{grid-template-columns:1fr}
+  .sidebar{border-right:0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+  .sidebar .export-block{grid-column:1/-1}
+  .grid{grid-template-columns:repeat(3,minmax(80px,1fr))}
+}
+@media (max-width:430px){
+  .actions .btn.ghost{display:none}
+  .grid{grid-template-columns:repeat(2,minmax(80px,1fr))}
+  .compare{grid-template-columns:1fr}
 }
 </style>
+<link rel="stylesheet" href="/workbench.css">
 </head>
 <body>
-
-<header>
-  <span class="logo">CARDCROP WRESTLING</span>
-  <nav class="tabs" id="tabs"></nav>
-  <span class="spacer"></span>
-  <span class="health mono"><span class="dot" id="hdot"></span><span id="htext">connecting…</span></span>
-  <button class="btn amber" id="runAll">Run VLM on all</button>
-</header>
-
-<main>
-  <aside id="rail">
-    <div class="panel"><h3>Enhancement</h3><div id="sliders"></div></div>
-    <div class="panel"><h3>Behaviour</h3><div id="toggles"></div></div>
-    <div class="panel"><h3>Export</h3>
-      <button class="btn secondary" style="width:100%;margin-bottom:var(--s2)" onclick="exportJSON()">Export audit JSON</button>
-      <button class="btn secondary" style="width:100%" onclick="exportCSV()">Export manifest CSV</button>
-      <p class="hint muted" style="margin:var(--s3) 0 0;font-size:11px">Exports come from the processed queue, not placeholders.</p>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="brand" id="addScans" title="Click to add scans" style="background:none;border:0;padding:0"><span class="dot"></span><span>Batch editor</span></button>
+    <div class="count-pill" id="summary">0 scans · 0 selected · 0 enhanced</div>
+    <div class="spacer"></div>
+    <div class="actions">
+      <button class="btn ghost" id="selectAll">Select all</button>
+      <button class="btn ghost" id="clearSelection">Clear</button>
+      <button class="btn ghost hidden" id="stopBatch">Stop</button>
+      <button class="btn run" id="runSelected" disabled>Run on 0 selected</button>
     </div>
-  </aside>
+    <input id="filePicker" class="hidden" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple>
+  </header>
 
-  <div>
-    <section class="view" data-v="upload">
-      <div class="panel">
-        <div class="drop" id="drop">
-          <div style="font-size:15px;font-weight:600">Upload wrestling card scans</div>
-          <div class="muted" style="margin-top:var(--s1)">WWE · AEW · other wrestling promotions — JPG · PNG · WEBP</div>
-          <input type="file" id="file" accept="image/*" multiple hidden>
+  <div class="workspace">
+    <aside class="sidebar" id="sidebar">
+      <div>
+        <h2 class="section-title">Enhancement</h2>
+
+        <div class="control">
+          <div class="control-head"><span>Scale</span><span class="control-value" id="scaleValue">2×</span></div>
+          <input id="scale" type="range" min="1" max="4" step=".5" value="2">
+          <div class="hint">Resamples with high-quality smoothing.<br>Long edge is capped at 2200px.</div>
         </div>
-        <div class="toolbar" style="margin-top:var(--s3)">
-          <span class="mono muted" id="pendingCount">0 files ready</span><span class="spacer"></span>
-          <button class="btn ghost sm" onclick="pending=[];render()">Clear</button>
-          <button class="btn amber" id="uploadBtn" disabled onclick="upload()">Upload</button>
+
+        <div class="control">
+          <div class="control-head"><span>Descratch</span><span class="control-value" id="descratchValue">0.35</span></div>
+          <input id="descratch" type="range" min="0" max="1" step=".05" value=".35">
+          <div class="hint">Repairs long thin scratch candidates.<br>Review faces, text and foil after repair.</div>
         </div>
-        <div class="grid" id="pendingGrid" style="margin-top:var(--s3)"></div>
-      </div>
-    </section>
 
-    <section class="view" data-v="queue">
-      <div class="panel">
-        <div class="toolbar"><h3 style="margin:0">Queue</h3><span class="spacer"></span><span class="mono muted" id="qsum"></span></div>
-        <div class="bar" id="qbar" style="margin-bottom:var(--s3)"><i style="width:0%"></i></div>
-        <div id="queue"></div>
-      </div>
-    </section>
+        <label class="checkrow">
+          <input id="chromeOnly" type="checkbox" checked>
+          <span>Only on scans detected as chrome/<br>foil (recognized card metadata)</span>
+        </label>
 
-    <section class="view" data-v="tune">
-      <div class="panel accent"><h3>Tune</h3><p class="muted" style="margin:0;font-size:13px">Settings persist on this device and are sent with every run.</p></div>
-      <div id="tuneMount" style="margin-top:var(--s4)"></div>
-    </section>
-
-    <section class="view" data-v="audit">
-      <div class="panel accent">
-        <div class="toolbar">
-          <select id="auditPick" class="btn secondary" style="max-width:52%"></select>
-          <span id="auditPill"></span><span class="spacer"></span>
-          <button class="btn sm secondary" onclick="rerun(cur)">Re-read</button>
-          <button class="btn sm secondary" onclick="enhanceOne(cur)">Enhance scan</button>
-          <button class="btn sm primary" onclick="accept(cur)">Accept this review</button>
+        <div class="control">
+          <div class="control-head"><span>Denoise</span><span class="control-value" id="denoiseValue">0.20</span></div>
+          <input id="denoise" type="range" min="0" max="1" step=".05" value=".20">
+          <div class="hint">Blends a 3×3 Gaussian smoothing pass<br>over the original.</div>
         </div>
-        <div style="display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:var(--s4)" id="auditBody"></div>
-      </div>
-    </section>
 
-    <section class="view" data-v="results">
-      <div class="panel">
-        <div class="toolbar">
-          <h3 style="margin:0">Results</h3><span class="mono muted" id="rsum"></span><span class="spacer"></span>
-          <button class="btn sm secondary" onclick="selectAll()">Select all</button>
-          <button class="btn sm ghost" onclick="sel.clear();render()">Clear</button>
-          <button class="btn sm secondary" onclick="enhanceSelected()">Enhance selected</button>
-          <button class="btn sm amber" id="runSel" onclick="runSelected()">Run on selected</button>
+        <div class="control">
+          <div class="control-head"><span>Sharpen</span><span class="control-value" id="sharpenValue">0.50</span></div>
+          <input id="sharpen" type="range" min="0" max="1" step=".05" value=".50">
+          <div class="hint">Unsharp mask. Measured sharpness delta<br>is available in Inspect.</div>
         </div>
-        <div class="grid" id="results"></div>
+
+        <div class="control">
+          <div class="control-head"><span>Contrast</span><span class="control-value" id="contrastValue">0.08</span></div>
+          <input id="contrast" type="range" min="0" max=".5" step=".01" value=".08">
+          <div class="hint">CLAHE luminance blend. Foil and chrome<br>clip fast — keep it low.</div>
+        </div>
       </div>
-    </section>
+
+      <details class="workbench-options"><summary>Workbench</summary>
+        <button class="export-btn" id="addFolder">Add folder</button>
+        <input id="folderPicker" class="hidden" type="file" webkitdirectory multiple>
+        <label class="checkrow"><input id="resumeBatch" type="checkbox" checked><span>Resume matching completed outputs</span></label>
+        <label class="checkrow"><input id="autoCrop" type="checkbox" checked><span>Auto-detect crop</span></label>
+        <label class="checkrow"><input id="autoRotate" type="checkbox" checked><span>Auto-rotate readable text</span></label>
+        <label class="checkrow"><span>Theme</span><select id="theme"><option value="amber">Screenshot amber</option><option value="neon">Obsidian / cyan / green</option></select></label>
+        <p class="hint">E edit · O compare · I inspect · R run · A add scans · C clear selection</p>
+        <p id="batchStatus" role="status" class="hint">Ready</p>
+      </details>
+      <div class="export-block">
+        <hr class="divider">
+        <h2 class="section-title" style="margin-bottom:8px">Export</h2>
+        <button class="export-btn" id="downloadEnhanced">Download enhanced PNGs</button>
+        <button class="export-btn" id="exportAudit">Export audit JSON</button>
+        <button class="export-btn" id="exportLog">Export run JSONL</button>
+        <p class="export-hint">Run the batch first — exports come from<br>the processed pixels, not a placeholder.</p>
+      </div>
+    </aside>
+
+    <main class="batch" id="batchArea">
+      <div class="batch-head">
+        <span class="batch-label">Batch</span>
+        <span class="progress-track"><i id="progressBar"></i></span>
+        <span class="progress-text" id="progressText">0%</span>
+      </div>
+      <div class="grid" id="grid"></div>
+    </main>
   </div>
-</main>
+</div>
 
-<nav class="tabbar" id="tabbar"></nav>
+<div class="drop-overlay" id="dropOverlay">Drop wrestling-card scans</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script>
-const API = {
-  cards:'/api/cards', upload:'/api/cards/upload', uploadField:'files',
-  vlmOne:id=>`/api/cards/${id}/vlm`, vlmAll:'/api/cards/vlm-all',
-  enhance:id=>`/api/cards/${id}/enhance`, remove:id=>`/api/cards/${id}`,
-  health:'/api/health', image:c=>c.url||`/uploads/${c.fileName}`,
-};
-const GATE=80;
-const TABS=[['upload','Upload'],['queue','Queue'],['tune','Tune'],['audit','Audit'],['results','Results']];
-let cards=[],pending=[],sel=new Set(),cur=null,view=localStorage.view||'upload';
-const settings=Object.assign({scale:2,descratch:0,denoise:0,sharpen:0.25,contrast:0,
-  conservative:true,escalate:true,autoRotate:true},JSON.parse(localStorage.settings||'{}'));
-const save=()=>localStorage.settings=JSON.stringify(settings);
+<div class="modal" id="compareModal" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <strong id="compareTitle">Compare</strong>
+      <span class="mono" id="compareMeta"></span>
+      <button class="btn ghost modal-close" id="compareClose">Close</button>
+    </div>
+    <p id="compareNotice" class="hint" style="padding:0 18px"></p>
+    <div class="compare">
+      <figure><figcaption>Original</figcaption><img id="compareOriginal" alt="Original scan"></figure>
+      <figure><figcaption>Enhanced</figcaption><img id="compareEnhanced" alt="Enhanced scan"></figure>
+    </div>
+  </div>
+</div>
 
-const W={player_name:25,year:12,manufacturer:12,set_name:10,promotion:10,card_type:8,card_number:5,serial:5,parallel:5,subset:5,finishing_move:3};
-function quality(m={}){if(typeof m.quality==='number')return m.quality;
-  return Object.entries(W).reduce((s,[k,w])=>s+(m[k]?w:0),0);}
-function uiStatus(c){const s=c.status||'queued';
-  if(/fail|error/.test(s)||c.metadata?.error)return'failed';
-  if(/process|running|pending|enhancing/.test(s))return'processing';
-  if(/complete|done|vlm|enhanced/.test(s))return c.accepted?'complete':'review';
-  return'queued';}
-const pill=s=>`<span class="pill" data-s="${s}">${s==='review'?'review needed':s}</span>`;
-const meter=q=>`<div class="meter ${q<50?'bad':q<GATE?'low':''}" title="${q}% · gate ${GATE}%"><i style="width:${q}%"></i></div>`;
-const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-
-const SLIDERS=[
- ['scale','Scale',1,4,0.5,'×','Resamples with high-quality smoothing. Long edge capped at 2200px.'],
- ['descratch','Descratch',0,1,0.05,'','Inpainting strength for candidate lines; may alter card detail. Disabled in conservative mode.'],
- ['denoise','Denoise',0,1,0.05,'','Blends Gaussian smoothing. Disabled in conservative mode.'],
- ['sharpen','Sharpen',0,1,0.05,'','Dual-scale unsharp mask. Above 0.7 text starts to halo.'],
- ['contrast','Contrast',0,0.5,0.01,'','Local contrast blend. Disabled in conservative mode.'],
-];
-const TOGGLES=[
- ['conservative','Conservative processing','Disables inpainting, denoise and colour changes; caps sharpening at 0.3. Originals remain available.'],
- ['escalate','Retry incomplete identification','Low field completeness can trigger a configured second model. Every identification still needs review.'],
- ['autoRotate','Auto-rotate to reading orientation','Checks all four orientations; preserves the original when OCR evidence is weak.'],
-];
-function renderControls(mount){
-  const sl=mount.querySelector('#sliders,.sliders'), tg=mount.querySelector('#toggles,.toggles');
-  if(sl)sl.innerHTML=SLIDERS.map(([k,l,mn,mx,st,u,h])=>`<div class="ctl"><div class="row"><span>${l}</span><span class="mono">${settings[k]}${u}</span></div>
-    <input type="range" min="${mn}" max="${mx}" step="${st}" value="${settings[k]}" data-k="${k}" data-u="${u}"><div class="hint">${h}</div></div>`).join('');
-  if(tg)tg.innerHTML=TOGGLES.map(([k,l,h])=>`<div class="toggle"><div class="sw ${settings[k]?'on':''}" data-k="${k}"></div>
-    <div><div>${l}</div><div class="why">${h}</div></div></div>`).join('');
-  mount.oninput=e=>{const k=e.target.dataset.k;if(!k)return;settings[k]=+e.target.value;
-    e.target.parentElement.querySelector('.mono').textContent=settings[k]+e.target.dataset.u;save();};
-  mount.onclick=e=>{const sw=e.target.closest('.sw');if(!sw)return;
-    settings[sw.dataset.k]=!settings[sw.dataset.k];sw.classList.toggle('on');save();};
-}
-async function j(url,init){const r=await fetch(url,init);if(!r.ok)throw new Error(`${r.status} ${(await r.text()).slice(0,200)}`);return r.json();}
-async function loadCards(){try{const d=await j(API.cards);const accepted=new Set(cards.filter(c=>c.accepted).map(c=>c.id));cards=d.cards||d;cards.forEach(c=>c.accepted=accepted.has(c.id));}catch(e){console.warn(e);}render();}
-async function health(){try{const h=await j(API.health);const v=h.vlm;
-  const prov=typeof v==='string'?v:(v&&v.provider)||'none';
-  const ok=prov&&prov!=='not configured'&&prov!=='none'&&prov!=='null';
-  hdot.className='dot '+(ok?'ok':'');htext.textContent=ok?`vlm: ${prov}`:'VLM unavailable · enhancement '+(h.enhancement?.available?'ready':'unavailable');runAll.disabled=!ok;
-  const detectorNote=h.yolo?.available?'detector ready':'no detector · whole-frame processing';
-  htext.textContent+=' · '+detectorNote;
- }catch{hdot.className='dot';htext.textContent='offline';runAll.disabled=true;}}
-const qs=extra=>new URLSearchParams({...Object.fromEntries(Object.entries(settings).map(([k,v])=>[k,String(v)])),...extra}).toString();
-function setLocal(id,s){const c=cards.find(c=>c.id===id);if(c){c.status=s;c.accepted=false;}}
-async function rerun(id){if(!id)return;const c=cards.find(c=>c.id===id);if(c)c.accepted=false;setLocal(id,'processing');render();
-  try{await j(API.vlmOne(id)+'?'+qs(),{method:'POST'});}catch(e){alert(e.message);}loadCards();}
-async function runSelected(){if(!sel.size)return;sel.forEach(id=>setLocal(id,'processing'));render();
-  await Promise.allSettled([...sel].map(id=>j(API.vlmOne(id)+'?'+qs(),{method:'POST'})));loadCards();}
-runAll.onclick=async()=>{cards.forEach(c=>setLocal(c.id,'processing'));render();
-  try{await j(API.vlmAll+'?'+qs(),{method:'POST'});}catch(e){alert(e.message);}loadCards();};
-async function enhanceOne(id){if(!id)return;
-  try{await j(API.enhance(id)+'?'+qs(),{method:'POST'});setLocal(id,'enhancing');render();}
-  catch(e){alert(e.message);}await loadCards();}
-async function enhanceSelected(){
-  for(const id of sel)await enhanceOne(id);
-}
-async function removeCard(id){try{await j(API.remove(id),{method:'DELETE'});}catch(e){alert(e.message);}loadCards();}
-function accept(id){const c=cards.find(c=>c.id===id);if(c&&!c.metadata?.error&&!['processing','enhancing','failed'].includes(c.status)){c.accepted=true;render();}}
-function selectAll(){cards.forEach(c=>sel.add(c.id));render();}
-function go(v){view=v;localStorage.view=v;render();}
-
-drop.onclick=()=>file.click();
-file.onchange=()=>{pending.push(...file.files);file.value='';render();};
-['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
-['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
-drop.addEventListener('drop',e=>{pending.push(...[...e.dataTransfer.files].filter(f=>f.type.startsWith('image/')));render();});
-async function upload(){uploadBtn.disabled=true;
-  const fd=new FormData();pending.forEach(f=>fd.append(API.uploadField,f));
-  try{await j(API.upload,{method:'POST',body:fd});pending=[];go('queue');}catch(e){alert(e.message);}
-  loadCards();}
-function dl(n,t,ty){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click();}
-function exportJSON(){dl('cardcrop-audit.json',JSON.stringify(cards.map(c=>({file:c.fileName,status:uiStatus(c),quality:quality(c.metadata),...c.metadata})),null,2),'application/json');}
-function exportCSV(){const cols=['fileName','status','quality','player_name','year','manufacturer','set_name','promotion','card_number','serial','card_type','height','from_location','finishing_move','vlm_provider','vlm_ms'];
-  const rows=cards.map(c=>cols.map(k=>{const v=k==='fileName'?c.fileName:k==='status'?uiStatus(c):k==='quality'?quality(c.metadata):c.metadata?.[k];
-    return`"${String(v??'').replace(/"/g,'""')}"`;}).join(','));
-  dl('cardcrop-manifest.csv',[cols.join(','),...rows].join('\n'),'text/csv');}
-
-function render(){
-  tabs.innerHTML=tabbar.innerHTML=TABS.map(([v,l])=>`<button class="${v===view?'on':''}" onclick="go('${v}')">${l}</button>`).join('');
-  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.dataset.v===view));
-  rail.classList.toggle('on',view==='tune');
-  if(view==='tune'&&!tuneMount.children.length){
-    tuneMount.innerHTML=`<div class="panel"><h3>Enhancement</h3><div class="sliders"></div></div><div class="panel" style="margin-top:var(--s4)"><h3>Behaviour</h3><div class="toggles"></div></div>`;
-    renderControls(tuneMount);}
-  pendingCount.textContent=`${pending.length} file${pending.length===1?'':'s'} ready`;uploadBtn.disabled=!pending.length;
-  pendingGrid.innerHTML=pending.map(f=>`<div class="card"><img src="${URL.createObjectURL(f)}" alt=""><div class="cap mono muted">${esc(f.name)}</div></div>`).join('');
-  const done=cards.filter(c=>['complete','review'].includes(uiStatus(c))).length;
-  qsum.textContent=`${done}/${cards.length} read · ${cards.filter(c=>uiStatus(c)==='review').length} need review · ${cards.filter(c=>uiStatus(c)==='failed').length} failed`;
-  qbar.firstElementChild.style.width=(cards.length?done/cards.length*100:0)+'%';
-  queue.innerHTML=cards.map(c=>{const s=uiStatus(c),q=quality(c.metadata);return`
-    <div class="row-item"><img src="${API.image(c)}" alt="" loading="lazy">
-      <div><div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap"><span class="mono">${esc(c.fileName)}</span>${pill(s)}</div>
-        <div class="muted" style="margin:var(--s1) 0;font-size:13px">${esc(c.metadata?.player_name||'—')}${c.metadata?.year?' · '+esc(c.metadata.year):''}${c.metadata?.set_name?' · '+esc(c.metadata.set_name):''}</div>
-        <div class="bar" data-s="${s}"><i style="width:${s==='processing'?60:s==='queued'?0:100}%"></i></div>
-        <div style="margin-top:var(--s2)">${meter(q)}</div></div>
-      <div style="display:flex;flex-direction:column;gap:var(--s1)">
-        <button class="btn sm secondary" onclick="enhanceOne('${c.id}')">Enhance</button>
-        <button class="btn sm secondary" onclick="rerun('${c.id}')">Re-read</button>
-        <button class="btn sm ghost" onclick="cur='${c.id}';go('audit')">Audit</button>
-        <button class="btn sm danger" onclick="removeCard('${c.id}')">Remove</button></div></div>`;}).join('')||'<p class="muted">No cards yet. Upload scans to start.</p>';
-  auditPick.innerHTML=cards.map(c=>`<option value="${c.id}" ${c.id===cur?'selected':''}>${esc(c.fileName)} — ${esc(c.metadata?.player_name||'?')}</option>`).join('');
-  auditPick.onchange=()=>{cur=auditPick.value;render();};
-  if(!cur&&cards.length)cur=(cards.find(c=>uiStatus(c)==='review')||cards[0]).id;
-  const a=cards.find(c=>c.id===cur);
-  if(a){const m=a.metadata||{},q=quality(m);auditPill.innerHTML=pill(uiStatus(a));
-    const keys=['player_name','year','manufacturer','set_name','promotion','card_number','serial','card_type','height','from_location','finishing_move','is_back'];
-    auditBody.innerHTML=`<div><img src="${API.image(a)}" alt="" style="width:100%;border-radius:var(--r4)">
-      <div style="margin:var(--s3) 0 var(--s1);display:flex;justify-content:space-between"><span class="muted">Field completeness · not accuracy</span><span class="mono">${q}%</span></div>${meter(q)}
-      <div class="mono muted" style="margin-top:var(--s3)">${esc(m.vlm_provider||'tesseract')}${m.vlm_ms?' · '+m.vlm_ms+'ms':''}</div></div>
-      <div><dl class="kv">${keys.map(k=>`<dt>${k==='player_name'?'wrestler_name':k}</dt><dd class="${m[k]==null?'null':''}">${m[k]==null?'null':esc(m[k])}</dd>`).join('')}</dl>
-      ${m.bio_text?`<p class="muted" style="font-size:13px">${esc(m.bio_text)}</p>`:''}
-      ${m.all_text?`<pre class="all mono">${esc(m.all_text)}</pre>`:''}
-      ${m.enhanceError?`<p style="color:var(--fail)">${esc(m.enhanceError)}</p>`:''}
-      ${m.enhancement?`<p class="muted">${esc(m.enhancement.output_size)} · ${m.enhancement.yolo_cropped?'Detector crop':'Whole frame — check crop manually'} · rotation ${esc(m.enhancement.rotation)}</p>`:''}
-      ${a.enhancedUrl?`<a class="btn secondary" href="${esc(a.enhancedUrl)}" target="_blank" rel="noopener">Open enhanced image</a><img src="${esc(a.enhancedUrl)}" alt="Enhanced wrestling card preview" style="width:100%;margin-top:16px">`:''}
-      ${m.error?`<pre class="all mono" style="color:var(--fail)">${esc(m.error)}${m.hint?'\n\n'+esc(m.hint):''}</pre>`:''}</div>`;}
-  else auditBody.innerHTML='<p class="muted">Nothing to audit.</p>';
-  rsum.textContent=`${cards.length} scans · ${sel.size} selected · ${cards.filter(c=>uiStatus(c)==='complete').length} complete`;
-  runSel.disabled=!sel.size;
-  results.innerHTML=cards.map(c=>`<div class="card ${sel.has(c.id)?'sel':''}" onclick="sel.has('${c.id}')?sel.delete('${c.id}'):sel.add('${c.id}');render()">
-    <div class="chk">✓</div><img src="${API.image(c)}" alt="" loading="lazy">
-    <div class="cap"><div style="font-weight:600;font-size:13px">${esc(c.metadata?.player_name||'—')}</div>
-      <div class="mono muted">${esc(c.fileName)}</div>
-      <div style="margin-top:var(--s1)">${pill(uiStatus(c))}</div></div></div>`).join('')||'<p class="muted">Nothing yet.</p>';
-}
-renderControls(rail);render();health();loadCards();
-setInterval(()=>{health();if(cards.some(c=>uiStatus(c)==='processing'))loadCards();},3000);
-</script>
+<div class="modal" id="editModal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+  <form class="modal-panel edit-panel" id="editForm">
+    <div class="modal-head"><strong id="editTitle">Edit card</strong><button type="button" class="btn modal-close" id="editClose">Cancel</button></div>
+    <div class="edit-body">
+      <section><p class="hint">Drag corners or enter normalized coordinates. Corners reset when rotating.</p>
+        <div id="cropSurface"><canvas id="cropCanvas"></canvas><svg id="cropOverlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="Crop corners"></svg></div>
+        <div class="edit-actions"><button type="button" class="btn" id="rotateCard">Rotate 90°</button><button type="button" class="btn" id="fullFrame">Full frame</button><button type="button" class="btn" id="detectCrop">Use detector crop</button></div>
+        <div id="quadInputs"></div>
+      </section>
+      <aside><label class="checkrow"><input type="checkbox" id="useOverride"><span>Per-card enhancement settings</span></label><div id="itemSettings"></div>
+        <p class="hint">Overrides use the same units as the left rail. Saving invalidates the previous output.</p><p id="editError" role="alert"></p>
+        <button class="btn run" id="saveItem" type="submit">Apply to item</button></aside>
+    </div>
+  </form>
+</div>
+<div class="modal" id="inspectModal" role="dialog" aria-modal="true" aria-labelledby="inspectTitle">
+  <div class="modal-panel"><div class="modal-head"><strong id="inspectTitle">Inspect</strong><button class="btn modal-close" id="inspectClose">Close</button></div><pre id="inspectData"></pre></div>
+</div>
+<script src="/workbench-state.js"></script>
+<script src="/batch-workbench.js" defer></script>
 </body>
 </html>

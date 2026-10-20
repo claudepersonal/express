@@ -1,0 +1,29 @@
+.workbench-options{font-size:10px;margin:12px 0;color:var(--muted)}
+.workbench-options summary{cursor:pointer;margin-bottom:10px;color:var(--text)}
+.workbench-options select{max-width:150px;background:var(--panel);color:var(--text);border:1px solid var(--line)}
+.card-tools{display:flex;gap:4px;margin-top:5px}
+.card-tools button{background:transparent;border:0;padding:2px 4px;font:9px var(--mono);color:var(--muted);cursor:pointer}
+.card-tools button:hover{color:var(--amber)}
+.card-tools button:focus-visible,button:focus-visible,article:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.edit-panel{width:min(1050px,95vw)}
+.edit-body{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:20px;padding:18px;max-height:80vh;overflow:auto}
+.edit-body aside label{display:block;font-size:11px;margin-bottom:12px}
+.edit-body aside input[type=range]{width:100%;display:block}
+.edit-body aside output{float:right}
+#editError{color:var(--danger);font-size:12px}
+#cropSurface{position:relative;width:100%;max-width:480px;margin:auto;touch-action:none}
+#cropCanvas{display:block;width:100%;height:auto}
+#cropOverlay{position:absolute;inset:0;width:100%;height:100%;overflow:visible;touch-action:none}
+#cropOverlay polygon{fill:rgba(0,0,0,.14);stroke:var(--amber);stroke-width:4;vector-effect:non-scaling-stroke;pointer-events:none}
+#cropOverlay circle{fill:var(--amber);stroke:#000;stroke-width:2;cursor:move}
+.edit-actions{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}
+#quadInputs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font:10px var(--mono)}
+#quadInputs input{width:64px;background:var(--panel);border:1px solid var(--line);padding:4px}
+#inspectData{white-space:pre-wrap;overflow-wrap:anywhere;max-height:75vh;overflow:auto;padding:18px;font:11px/1.6 var(--mono)}
+html[data-theme=neon]{--bg:#080808;--panel:#0c1210;--panel2:#0c1210;--line:#0a3d3d;--line2:#0a3d3d;--text:#eafffb;--muted:#8bb6ae;--amber:#00ffff;--amber2:#00ccbb;--amberwash:#00ffff1a;--ok:#00ff66}
+html[data-theme=neon] .topbar,html[data-theme=neon] .sidebar{background:var(--panel)}
+html[data-theme=neon] .btn.run{background:#00ffff;border-color:#00ffff;color:#080808;box-shadow:0 0 14px #00ffff33}
+html[data-theme=neon] .count-pill{color:#00ff66;border-color:#0a3d3d;background:#0c1210}
+html[data-theme=neon] .brand .dot{background:#00ff66;box-shadow:0 0 8px #00ff6677}
+@media(max-width:650px){.edit-body{grid-template-columns:1fr}.topbar{flex-wrap:wrap;height:auto;min-height:70px}.app{grid-template-rows:auto minmax(0,1fr)}.actions{margin-left:auto}.card-tools button{min-height:30px}}
+@media(max-width:430px){.actions #stopBatch,.actions #selectAll,.actions #clearSelection{display:inline-flex;align-items:center}.actions{flex-wrap:wrap;justify-content:flex-end}.topbar{padding-block:10px}.actions .btn{padding-inline:8px}}
