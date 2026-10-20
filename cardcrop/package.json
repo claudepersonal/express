@@ -4,11 +4,15 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/*.test.js && python3 -m unittest discover -s tests -v"
+    "test": "node --test tests/*.test.js && python3 -m unittest discover -s tests -v",
+    "test:gui": "node scripts/gui-smoke.cjs"
   },
   "dependencies": {
     "express": "^5.2.1",
     "multer": "^2.0.0",
     "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
   }
 }

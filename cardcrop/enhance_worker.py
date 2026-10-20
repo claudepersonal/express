@@ -10,6 +10,7 @@ import json
 import math
 import os
 import sys
+import time
 
 import cv2
 import numpy as np
@@ -129,15 +130,48 @@ def validate_options(opts):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not lo <= value <= hi:
             raise ValueError(f'{key} must be between {lo} and {hi}')
         out[key] = value
-    for key in ['autoRotate', 'conservative']:
+    for key in ['autoRotate', 'conservative', 'autoCrop']:
         value = opts.get(key, True)
         if not isinstance(value, bool):
             raise ValueError(f'{key} must be a boolean')
         out[key] = value
+    rotation = opts.get('rotation', 0)
+    if isinstance(rotation, bool) or rotation not in [0, 90, 180, 270]:
+        raise ValueError('invalid rotation')
+    out['rotation'] = rotation
+    quad = opts.get('quad')
+    if quad is not None:
+        if not isinstance(quad, list) or len(quad) != 4 or any(
+            not isinstance(p, list) or len(p) != 2 or any(
+                isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 1
+                for v in p) for p in quad):
+            raise ValueError('invalid crop corners')
+        pts = np.array(quad, dtype=np.float32)
+        edges = np.roll(pts, -1, axis=0) - pts
+        cross = edges[:, 0] * np.roll(edges[:, 1], -1) - edges[:, 1] * np.roll(edges[:, 0], -1)
+        area = sum(p[0]*quad[(i+1)%4][1]-quad[(i+1)%4][0]*p[1] for i,p in enumerate(quad))/2
+        if np.any(cross <= 0) or area < .005:
+            raise ValueError('crop must be clockwise, convex and nonzero')
+    out['quad'] = quad
     return out
 
 
+def manual_geometry(img, rotation, quad):
+    if rotation:
+        img = cv2.rotate(img, {90:cv2.ROTATE_90_CLOCKWISE, 180:cv2.ROTATE_180, 270:cv2.ROTATE_90_COUNTERCLOCKWISE}[rotation])
+    if quad is None:
+        return img
+    h,w = img.shape[:2]
+    src = np.array(quad, np.float32) * np.array([w-1,h-1], np.float32)
+    tl,tr,br,bl = src
+    out_w = max(2, round(max(np.linalg.norm(tr-tl), np.linalg.norm(br-bl)))+1)
+    out_h = max(2, round(max(np.linalg.norm(bl-tl), np.linalg.norm(br-tr)))+1)
+    dst = np.array([[0,0],[out_w-1,0],[out_w-1,out_h-1],[0,out_h-1]], np.float32)
+    return cv2.warpPerspective(img, cv2.getPerspectiveTransform(src,dst), (out_w,out_h))
+
+
 def enhance(input_path, output_path, opts=None):
+    started = time.perf_counter()
     opts = validate_options({} if opts is None else opts)
     if os.path.realpath(input_path) == os.path.realpath(output_path):
         raise ValueError('output must not overwrite the original')
@@ -145,17 +179,19 @@ def enhance(input_path, output_path, opts=None):
     if img is None:
         raise ValueError('cannot read image')
     src_h, src_w = img.shape[:2]
-    det = detect_card(img)
+    img = manual_geometry(img, opts['rotation'], opts['quad'])
+    det = detect_card(img) if opts['quad'] is None and opts['autoCrop'] else None
     if det:
         x1, y1, x2, y2, _ = det
         img = img[max(0, y1-4):min(src_h, y2+4), max(0, x1-4):min(src_w, x2+4)]
     rot = 'none'
-    if opts['autoRotate']:
+    if opts['autoRotate'] and not opts['rotation'] and opts['quad'] is None:
         img, rot = best_orientation(img)
     h, w = img.shape[:2]
     factor = min(opts['scale'], 2200 / max(h, w))
     size = (max(1, round(w*factor)), max(1, round(h*factor)))
     img = cv2.resize(img, size, interpolation=cv2.INTER_AREA if factor < 1 else cv2.INTER_LANCZOS4)
+    sharpness_before = float(cv2.Laplacian(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var())
     candidates = 0
     # Surface repair/colour changes require explicit non-conservative mode.
     if not opts['conservative']:
@@ -184,13 +220,17 @@ def enhance(input_path, output_path, opts=None):
         if os.path.exists(temporary):
             os.unlink(temporary)
     status = detector_status()
-    return {'category': 'wrestling', 'rotation': rot, 'source': f'{src_w}x{src_h}',
+    sharpness_after = float(cv2.Laplacian(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var())
+    return {'category': 'wrestling', 'rotation': rot, 'manual_rotation':opts['rotation'], 'source': f'{src_w}x{src_h}',
             'output_size': f'{size[0]}x{size[1]}', 'orientation': 'landscape' if size[0] > size[1] else 'portrait',
             'yolo_available': status['available'], 'yolo_conf': round(det[4], 3) if det else None,
-            'yolo_cropped': bool(det), 'detection_mode': 'yolo_crop' if det else 'whole_frame',
-            'detection_warning': None if det else (status['reason'] or 'no_accepted_detection'),
+            'yolo_cropped': bool(det), 'detection_mode': 'manual_quad' if opts['quad'] is not None else ('yolo_crop' if det else 'whole_frame'),
+            'detection_warning': None if det or opts['quad'] is not None or not opts['autoCrop'] else (status['reason'] or 'no_accepted_detection'),
             'scratch_candidates': candidates, 'surface_altered': candidates > 0,
-            'conservative': opts['conservative'], 'review_needed': True}
+            'conservative': opts['conservative'], 'review_needed': True, 'options':opts,
+            'backend':'opencv', 'ms':round((time.perf_counter()-started)*1000),
+            'sharpness_before':sharpness_before, 'sharpness_after':sharpness_after,
+            'sharpness_delta':sharpness_after-sharpness_before}
 
 
 def main():

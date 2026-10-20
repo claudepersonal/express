@@ -5,7 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
 const vlm = require('./vlm_ocr');
-const { enhanceOptsFrom, readEnhancement } = require('./enhance-contract');
+const { enhanceOptsFrom, readEnhancement, optionsForCard } = require('./enhance-contract');
+const { validateWorkbench } = require('./workbench-contract');
 let workerReady = false;
 let enhancementQueue = Promise.resolve();
 const ocrQueues = [Promise.resolve(), Promise.resolve()];
@@ -57,7 +58,7 @@ function snapshot() {
     id: c.id, fileName: c.fileName, filePath: c.filePath, url: c.url,
     enhancedUrl: c.enhancedUrl, metadata: c.metadata,
     status: (c.status === 'processing' || c.status === 'enhancing') ? 'queued' : c.status,
-    createdAt: c.createdAt,
+    createdAt: c.createdAt, workbench: c.workbench, workbenchRevision: c.workbenchRevision || 0,
   }));
 }
 
@@ -170,7 +171,6 @@ app.post('/api/cards/vlm-all', (req, res) => {
   if (req.query.only === 'pending') {
     all = all.filter(c => c.status !== 'vlm_complete' || c.metadata?.review_needed);
   } else if (req.query.only === 'failed') {
-    // Retry just the failures (rate limits, category rejections) server-side.
     all = all.filter(c => c.status === 'failed');
   }
   all.forEach(c => { c.status = 'processing'; });
@@ -186,13 +186,31 @@ app.post('/api/cards/vlm-all', (req, res) => {
 });
 
 // ══ enhance ══
+app.patch('/api/cards/:id/workbench', (req, res) => {
+  const card=jobs.get(req.params.id);
+  if (!card) return res.status(404).json({error:'Card not found'});
+  if (['enhancing','processing'].includes(card.status)) return res.status(409).json({error:'Card is processing; wait before editing'});
+  if (!req.body || !Number.isInteger(req.body.expectedRevision) || req.body.expectedRevision !== (card.workbenchRevision||0)) return res.status(409).json({error:'Card changed; reopen the editor before saving'});
+  let next;
+  try { next=validateWorkbench(req.body.workbench); } catch(e) {return res.status(400).json({error:e.message});}
+  card.workbench=next;
+  card.workbenchRevision=(card.workbenchRevision||0)+1;
+  card.enhancedUrl=null;
+  card.status='queued';
+  for (const key of ['enhancement','enhanceError','output_size','orientation']) delete card.metadata[key];
+  persist();
+  res.json({card:sanitize(card)});
+});
+
 app.post('/api/cards/:id/enhance', (req, res) => {
   const card = jobs.get(req.params.id);
   if (!card) return res.status(404).json({ error: 'Card not found' });
   if (['enhancing', 'processing'].includes(card.status)) return res.status(409).json({ error: 'Already processing' });
   let opts;
-  try { opts = enhanceOptsFrom(req.query); } catch (e) { return res.status(400).json({ error: e.message }); }
+  try { opts = optionsForCard(enhanceOptsFrom(req.query), card); } catch (e) { return res.status(400).json({ error: e.message }); }
   card.status = 'enhancing';
+  card.enhancedUrl = null;
+  delete card.metadata.enhanceError;
   persist();
   runEnhance(card, opts)
     .then(() => { card.status = 'enhanced'; })
@@ -205,13 +223,13 @@ app.post('/api/cards/enhance-all', (req, res) => {
   let opts;
   try { opts = enhanceOptsFrom(req.query); } catch (e) { return res.status(400).json({ error: e.message }); }
   const all = [...jobs.values()].filter(c => !['enhancing', 'processing'].includes(c.status));
-  all.forEach(c => { c.status = 'enhancing'; });
+  all.forEach(c => { c.status = 'enhancing'; c.enhancedUrl = null; delete c.metadata.enhanceError; });
   persist();
   res.json({ started: all.length });
 
   (async () => {
     for (const card of all) {
-      try { await runEnhance(card, opts); card.status = 'enhanced'; }
+      try { await runEnhance(card, optionsForCard(opts, card)); card.status = 'enhanced'; }
       catch (e) { card.status = 'failed'; card.metadata.enhanceError = e.message; }
       persist();
     }
@@ -306,6 +324,7 @@ function sanitize(card) {
     id: card.id, fileName: card.fileName, url: card.url,
     enhancedUrl: card.enhancedUrl, metadata: card.metadata,
     status: card.status, createdAt: card.createdAt,
+    workbench: card.workbench || null, workbenchRevision: card.workbenchRevision || 0,
   };
 }
 
