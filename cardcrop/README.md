@@ -29,6 +29,7 @@ The original screenshot amber remains default; Workbench offers the supplied neo
 No eBay publication occurs here. The VLM bridge reuses the existing wrestling-only provider
 module and server credentials; credentials never enter the Vite bundle.
 
-YOLO weights are optional. Missing weights are reported as whole-frame fallback. OpenCV
+The production build fetches the existing pinned YOLO card detector and verifies its SHA-256;
+missing/unloadable runtime weights are reported as whole-frame fallback. OpenCV
 resampling is reported as OpenCV, never as learned super-resolution or NVIDIA inference.
 The older Express source is retained as migration reference; it is not the start command.
