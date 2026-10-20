@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const state=require('../public/workbench-state');
+const state=require('../frontend/src/workbench-state');
 const {validateWorkbench}=require('../workbench-contract');
 const {enhanceOptsFrom,optionsForCard}=require('../enhance-contract');
 

@@ -22,7 +22,7 @@ d.text((20,70),'2025 AEW WRESTLING',fill='black');d.text((20,150),'KENNY OMEGA',
 im.save(${JSON.stringify(image)})`]);
   const env={...process.env,PORT:'0',STORAGE_DIR:path.join(temp,'data'),YOLO_MODEL:path.join(temp,'absent.pt')};
   for(const k of ['OPENAI_API_KEY','ANTHROPIC_API_KEY','GOOGLE_API_KEY','GEMINI_API_KEY','HF_TOKEN'])delete env[k];
-  const server=spawn(process.execPath,[path.join(root,'server.js')],{env,stdio:['ignore','pipe','pipe']});
+  const server=spawn('python3',['-m','uvicorn','backend.app:app','--host','0.0.0.0','--port','0'],{cwd:root,env,stdio:['ignore','pipe','pipe']});
   let output='';server.stdout.on('data',b=>output+=b);server.stderr.on('data',b=>output+=b);
   let browser;
   try{

@@ -1,5 +1,10 @@
 # CardChop GUI merge — implemented source changes
 
+## Current runtime: Vite + FastAPI
+
+The follow-up launch migration moves the active GUI to `frontend/index.html` and `frontend/src/`, builds it with Vite, and serves the build plus the API from `backend/app.py` (FastAPI). `scripts/start.sh` starts Uvicorn; `scripts/dev.cjs` runs Vite with an API proxy for development. The existing workers and `/data/jobs.json` registry remain compatible. `Dockerfile` runs real FastAPI upload/edit/enhancement/recovery tests before launch. The Express paths below describe the initial merge history and are retained as reference, not the current production entry point.
+
+
 ## Source and target
 
 Read all four requested current files: `CardChop-LIVE-PREVIEW.html`, `CardEnhance-main(2).zip`, `card-enhancer-handoff-main(2).zip`, and `GUI_MERGE_NOTES.md`. Also recovered `CardChop-exact-batch-editor-git.zip` and `express-master(2).zip` to avoid reconstructing the backend from notes. The runnable archive is `cardchop-exact-gui`; GitHub target is `claudepersonal/express`, directory `cardcrop/`.

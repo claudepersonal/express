@@ -1,0 +1,9 @@
+{
+  "name": "CardChop",
+  "short_name": "CardChop",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050607",
+  "theme_color": "#070809",
+  "icons": []
+}
