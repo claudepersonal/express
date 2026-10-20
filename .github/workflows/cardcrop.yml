@@ -1,7 +1,7 @@
 name: Wrestling CardCrop checks
 on:
   push:
-    branches: [master]
+    branches: [master, 'codex/cardchop-gui-workbench-*']
     paths: ['cardcrop/**', '.github/workflows/cardcrop.yml']
   pull_request:
     paths: ['cardcrop/**', '.github/workflows/cardcrop.yml']

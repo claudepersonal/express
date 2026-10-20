@@ -34,6 +34,15 @@ cv2.imwrite(${JSON.stringify(fixture)},im)`]);
     card=await poll();assert.equal(card.status,'enhanced',JSON.stringify(card));assert.equal(card.metadata.output_size,'1000x700');
     assert.equal(card.metadata.enhancement.detection_mode,'whole_frame');
     const out=await fetch(root+card.enhancedUrl);assert.equal(out.status,200);assert.equal(out.headers.get('content-type'),'image/png');
+    const edit={expectedRevision:0,workbench:{rotation:90,quad:[[0,0],[1,0],[1,1],[0,1]],customSettings:{scale:1,autoRotate:false,sharpen:0}}};
+    const save=await fetch(root+'/api/cards/'+id+'/workbench',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(edit)});
+    assert.equal(save.status,200);
+    const saved=(await save.json()).card;
+    assert.equal(saved.enhancedUrl,null);assert.equal(saved.status,'queued');assert.equal(saved.workbenchRevision,1);
+    assert.equal((await fetch(root+'/api/cards/'+id+'/workbench',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(edit)})).status,409);
+    await fetch(root+'/api/cards/'+id+'/enhance',{method:'POST'});
+    card=await poll();assert.equal(card.status,'enhanced');assert.equal(card.metadata.output_size,'350x500');
+    assert.equal(card.metadata.enhancement.detection_mode,'manual_quad');assert.equal(card.metadata.enhancement.options.rotation,90);
     // Broken input must transition to failed, never enhanced, even with old output.
     const uploaded=fs.readdirSync(path.join(dir,'data/uploads'))[0];
     fs.writeFileSync(path.join(dir,'data/uploads',uploaded),'broken image');

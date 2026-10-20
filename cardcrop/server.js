@@ -210,7 +210,7 @@ app.post('/api/cards/:id/enhance', (req, res) => {
   try { opts = optionsForCard(enhanceOptsFrom(req.query), card); } catch (e) { return res.status(400).json({ error: e.message }); }
   card.status = 'enhancing';
   card.enhancedUrl = null;
-  delete card.metadata.enhanceError;
+  for (const key of ['enhancement','enhanceError','output_size','orientation']) delete card.metadata[key];
   persist();
   runEnhance(card, opts)
     .then(() => { card.status = 'enhanced'; })
@@ -223,7 +223,10 @@ app.post('/api/cards/enhance-all', (req, res) => {
   let opts;
   try { opts = enhanceOptsFrom(req.query); } catch (e) { return res.status(400).json({ error: e.message }); }
   const all = [...jobs.values()].filter(c => !['enhancing', 'processing'].includes(c.status));
-  all.forEach(c => { c.status = 'enhancing'; c.enhancedUrl = null; delete c.metadata.enhanceError; });
+  all.forEach(c => {
+    c.status = 'enhancing'; c.enhancedUrl = null;
+    for (const key of ['enhancement','enhanceError','output_size','orientation']) delete c.metadata[key];
+  });
   persist();
   res.json({ started: all.length });
 
